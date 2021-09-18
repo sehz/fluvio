@@ -2061,6 +2061,7 @@ version = "0.2.5"
 dependencies = [
  "event-listener",
  "fluvio-future",
+ "futures-util",
  "thiserror",
  "tokio",
  "tracing",
