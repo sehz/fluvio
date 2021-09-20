@@ -238,15 +238,30 @@ mod test {
 
     #[fluvio_future::test]
     async fn test_take_until() {
+        use std::pin::Pin;
+        use futures_util::Stream;
         use super::StickyEvent;
 
         let end: Arc<StickyEvent> = StickyEvent::shared();
         let stream = stream::repeat(9);
-
         let _until = stream.take_until(end.listen());
 
         let stream2 = stream::repeat(9);
         let _until2 = stream2.take_until(end.listen_pinned());
+
+        // In our real use-case, we need our stream to be `impl Stream + Send + Sync + 'static`
+        fn assert_stream<S: Stream + Send + Sync + 'static>(stream: S) -> S {
+            stream
+        }
+        // The stream needs to be able to be moved, as it will be stored in a struct
+        fn move_it<S>(it: S) -> S {
+            it
+        }
+        let stream3 = stream::repeat(9);
+        let until3 = stream3.take_until(end.listen_pinned());
+        let until3 = assert_stream(until3);
+        let pinned: Option<Pin<Box<dyn Stream<Item = i32> + Send + Sync>>> = Some(Box::pin(until3));
+        let moved = move_it(pinned);
     }
 
     #[fluvio_future::test]
