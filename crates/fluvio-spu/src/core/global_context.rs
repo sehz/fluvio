@@ -6,12 +6,12 @@
 use std::sync::Arc;
 use std::fmt::Debug;
 
-use fluvio_smartengine::engine::SmartEngine;
 use tracing::{debug, error, instrument};
 
 use fluvio_controlplane_metadata::partition::Replica;
 use fluvio_types::SpuId;
 use fluvio_storage::{ReplicaStorage};
+use fluvio_smartengine::engine::SmartEngine;
 
 use crate::config::SpuConfig;
 use crate::replication::follower::FollowersState;
@@ -33,6 +33,31 @@ use super::replica::ReplicaStore;
 use super::SharedSpuConfig;
 
 pub use file_replica::ReplicaChange;
+
+pub(crate) static SPU_STORE: OnceCell<SharedSpuLocalStore> = OnceCell::new();
+
+
+/// initialize global variables
+pub(crate) fn initialize(spu_config: SpuConfig) {
+    SPU_STORE.set(SpuLocalStore::new_shared()).unwrap();
+    /* 
+    let replicas = ReplicaStore::new_shared();
+
+    GlobalContext {
+        spu_localstore: spus.clone(),
+        replica_localstore: replicas.clone(),
+        smartmodule_localstore: SmartModuleLocalStore::new_shared(),
+        derivedstream_localstore: DerivedStreamStore::new_shared(),
+        config: Arc::new(spu_config),
+        leaders_state: ReplicaLeadersState::new_shared(),
+        followers_state: FollowersState::new_shared(),
+        spu_followers: FollowerNotifier::shared(),
+        status_update: StatusMessageSink::shared(),
+        sm_engine: SmartEngine::default(),
+        leaders: LeaderConnections::shared(spus, replicas),
+    }
+    */
+}
 
 #[derive(Debug)]
 pub struct GlobalContext<S> {
