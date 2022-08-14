@@ -35,6 +35,7 @@ use super::SharedSpuConfig;
 pub use file_replica::ReplicaChange;
 
 static SPU_STORE: OnceCell<SharedSpuLocalStore> = OnceCell::new();
+static REPLICA_STORE: OnceCell<SharedReplicaLocalStore> = OnceCell::new();
 
 pub(crate) fn spu_local_store() -> &'static SpuLocalStore {
     SPU_STORE.get().unwrap()
@@ -44,9 +45,14 @@ pub(crate) fn spu_local_store_owned() -> SharedSpuLocalStore {
     SPU_STORE.get().unwrap().clone()
 }
 
+pub(crate) fn replica_localstore() -> &'static ReplicaStore {
+    REPLICA_STORE.get().unwrap()
+}
+
 /// initialize global variables
 pub(crate) fn initialize(_spu_config: SpuConfig) {
     SPU_STORE.set(SpuLocalStore::new_shared()).unwrap();
+    REPLICA_STORE.set(ReplicaStore::new_shared()).unwrap();
     /*
     let replicas = ReplicaStore::new_shared();
 
@@ -69,7 +75,6 @@ pub(crate) fn initialize(_spu_config: SpuConfig) {
 #[derive(Debug)]
 pub struct GlobalContext<S> {
     config: SharedSpuConfig,
-    replica_localstore: SharedReplicaLocalStore,
     smartmodule_localstore: SharedSmartModuleLocalStore,
     derivedstream_localstore: SharedStreamStreamLocalStore,
     leaders_state: SharedReplicaLeadersState<S>,
@@ -97,7 +102,6 @@ where
         let replicas = ReplicaStore::new_shared();
 
         GlobalContext {
-            replica_localstore: replicas.clone(),
             smartmodule_localstore: SmartModuleLocalStore::new_shared(),
             derivedstream_localstore: DerivedStreamStore::new_shared(),
             config: Arc::new(spu_config),
@@ -113,10 +117,6 @@ where
     /// retrieves local spu id
     pub fn local_spu_id(&self) -> SpuId {
         self.config.id
-    }
-
-    pub fn replica_localstore(&self) -> &ReplicaStore {
-        &self.replica_localstore
     }
 
     pub fn smartmodule_localstore(&self) -> &SmartModuleLocalStore {
@@ -236,9 +236,7 @@ mod file_replica {
             &self,
             request: UpdateReplicaRequest,
         ) -> Vec<ReplicaChange> {
-            let changes = self
-                .replica_localstore()
-                .apply(request.all, request.changes);
+            let changes = replica_localstore().apply(request.all, request.changes);
 
             self.apply_replica_actions(changes).await
         }
