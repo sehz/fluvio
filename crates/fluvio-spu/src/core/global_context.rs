@@ -34,13 +34,20 @@ use super::SharedSpuConfig;
 
 pub use file_replica::ReplicaChange;
 
-pub(crate) static SPU_STORE: OnceCell<SharedSpuLocalStore> = OnceCell::new();
+static SPU_STORE: OnceCell<SharedSpuLocalStore> = OnceCell::new();
 
+pub(crate) fn spu_local_store() -> &'static SpuLocalStore {
+    SPU_STORE.get().unwrap()
+}
+
+pub(crate) fn spu_local_store_owned() -> SharedSpuLocalStore {
+    SPU_STORE.get().unwrap().clone()
+}
 
 /// initialize global variables
-pub(crate) fn initialize(spu_config: SpuConfig) {
+pub(crate) fn initialize(_spu_config: SpuConfig) {
     SPU_STORE.set(SpuLocalStore::new_shared()).unwrap();
-    /* 
+    /*
     let replicas = ReplicaStore::new_shared();
 
     GlobalContext {
@@ -62,7 +69,6 @@ pub(crate) fn initialize(spu_config: SpuConfig) {
 #[derive(Debug)]
 pub struct GlobalContext<S> {
     config: SharedSpuConfig,
-    spu_localstore: SharedSpuLocalStore,
     replica_localstore: SharedReplicaLocalStore,
     smartmodule_localstore: SharedSmartModuleLocalStore,
     derivedstream_localstore: SharedStreamStreamLocalStore,
@@ -91,7 +97,6 @@ where
         let replicas = ReplicaStore::new_shared();
 
         GlobalContext {
-            spu_localstore: spus.clone(),
             replica_localstore: replicas.clone(),
             smartmodule_localstore: SmartModuleLocalStore::new_shared(),
             derivedstream_localstore: DerivedStreamStore::new_shared(),
@@ -105,17 +110,9 @@ where
         }
     }
 
-    pub fn spu_localstore_owned(&self) -> SharedSpuLocalStore {
-        self.spu_localstore.clone()
-    }
-
     /// retrieves local spu id
     pub fn local_spu_id(&self) -> SpuId {
         self.config.id
-    }
-
-    pub fn spu_localstore(&self) -> &SpuLocalStore {
-        &self.spu_localstore
     }
 
     pub fn replica_localstore(&self) -> &ReplicaStore {
@@ -167,7 +164,7 @@ where
     #[instrument(skip(self))]
     pub async fn sync_follower_update(&self) {
         self.spu_followers
-            .sync_from_spus(self.spu_localstore(), self.local_spu_id())
+            .sync_from_spus(spu_local_store(), self.local_spu_id())
             .await;
     }
 
