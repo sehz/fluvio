@@ -37,7 +37,10 @@ use fluvio_spu_schema::{
 };
 use fluvio_spu_schema::server::stream_fetch::{DefaultStreamFetchRequest};
 use crate::{
-    core::{GlobalContext, spu_local_store, replica_localstore, smartmodule_localstore},
+    core::{
+        GlobalContext, spu_local_store, replica_localstore, smartmodule_localstore,
+        follower_notifier,
+    },
     services::public::tests::create_filter_records,
 };
 use crate::config::SpuConfig;
@@ -136,7 +139,7 @@ async fn test_stream_fetch_basic() {
         let mut records = RecordSet::default().add(create_batch());
         // write records, base offset = 0 since we are starting from 0
         replica
-            .write_record_set(&mut records, ctx.follower_notifier())
+            .write_record_set(&mut records, follower_notifier())
             .await
             .expect("write");
 
@@ -246,7 +249,7 @@ async fn test_stream_fetch_basic() {
         debug!("writing 2nd batch");
         // base offset should be 2
         replica
-            .write_record_set(&mut records, ctx.follower_notifier())
+            .write_record_set(&mut records, follower_notifier())
             .await
             .expect("write");
         assert_eq!(replica.hw(), 4);
@@ -469,7 +472,7 @@ async fn test_stream_fetch_filter(
     let mut records = create_filter_records(2);
     //debug!("records: {:#?}", records);
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -518,21 +521,21 @@ async fn test_stream_fetch_filter(
     // first write 2 non filterable records
     let mut records = RecordSet::default().add(create_batch());
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
     // another 1 of 3, here base offset should be = 4
     let mut records = create_filter_records(3);
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
     // create another 4, base should be 4 + 3 = 7 and total 10 records
     let mut records = create_filter_records(3);
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
     assert_eq!(replica.hw(), 10);
@@ -678,7 +681,7 @@ async fn test_stream_fetch_filter_individual(
         .expect("batch")
         .records();
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -694,7 +697,7 @@ async fn test_stream_fetch_filter_individual(
         .expect("batch")
         .records();
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -820,7 +823,7 @@ async fn test_stream_filter_error_fetch(
         .records();
 
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -939,15 +942,15 @@ async fn test_stream_filter_max(
     // write 2 batches each with 10 records
     //debug!("records: {:#?}", records);
     replica
-        .write_record_set(&mut create_filter_records(10), ctx.follower_notifier())
+        .write_record_set(&mut create_filter_records(10), follower_notifier())
         .await
         .expect("write"); // 1000 bytes
     replica
-        .write_record_set(&mut create_filter_records(10), ctx.follower_notifier())
+        .write_record_set(&mut create_filter_records(10), follower_notifier())
         .await
         .expect("write"); // 2000 bytes totals
     replica
-        .write_record_set(&mut create_filter_records(10), ctx.follower_notifier())
+        .write_record_set(&mut create_filter_records(10), follower_notifier())
         .await
         .expect("write"); // 3000 bytes total
                           // now total of 300 filter records bytes (min), but last filter record is greater than max
@@ -1109,7 +1112,7 @@ async fn test_stream_fetch_map(
             .records();
 
         replica
-            .write_record_set(&mut records, ctx.follower_notifier())
+            .write_record_set(&mut records, follower_notifier())
             .await
             .expect("write");
     }
@@ -1285,7 +1288,7 @@ async fn test_stream_fetch_map_error(
         .records();
 
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -1437,7 +1440,7 @@ async fn test_stream_aggregate_fetch_single_batch(
         .expect("create stream");
 
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -1575,7 +1578,7 @@ async fn test_stream_aggregate_fetch_multiple_batch(
     debug!("first batch: {:#?}", records);
 
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -1593,7 +1596,7 @@ async fn test_stream_aggregate_fetch_multiple_batch(
     debug!("2nd batch: {:#?}", records2);
 
     replica
-        .write_record_set(&mut records2, ctx.follower_notifier())
+        .write_record_set(&mut records2, follower_notifier())
         .await
         .expect("write");
 
@@ -1937,7 +1940,7 @@ async fn test_stream_fetch_array_map(
         .records();
 
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -2073,7 +2076,7 @@ async fn test_stream_fetch_filter_map(
         .records();
 
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -2223,7 +2226,7 @@ async fn test_stream_fetch_filter_with_params(
     // 1 out of 2 are filtered
     let mut records = create_filter_records(2);
     replica
-        .write_record_set(&mut records, ctx.follower_notifier())
+        .write_record_set(&mut records, follower_notifier())
         .await
         .expect("write");
 
@@ -2520,12 +2523,12 @@ async fn test_stream_fetch_join(
         .records();
 
     replica_left
-        .write_record_set(&mut records_left, ctx.follower_notifier())
+        .write_record_set(&mut records_left, follower_notifier())
         .await
         .expect("write");
 
     replica_right
-        .write_record_set(&mut records_right, ctx.follower_notifier())
+        .write_record_set(&mut records_right, follower_notifier())
         .await
         .expect("write");
 
@@ -2576,7 +2579,7 @@ async fn test_stream_fetch_join(
         .expect("batch")
         .records();
     replica_left
-        .write_record_set(&mut records_left, ctx.follower_notifier())
+        .write_record_set(&mut records_left, follower_notifier())
         .await
         .expect("write");
 
@@ -2616,7 +2619,7 @@ async fn test_stream_fetch_join(
         .records();
 
     replica_right
-        .write_record_set(&mut records_right, ctx.follower_notifier())
+        .write_record_set(&mut records_right, follower_notifier())
         .await
         .expect("write");
 
@@ -2645,7 +2648,7 @@ async fn test_stream_fetch_join(
         .expect("batch")
         .records();
     replica_left
-        .write_record_set(&mut records_left, ctx.follower_notifier())
+        .write_record_set(&mut records_left, follower_notifier())
         .await
         .expect("write");
 
