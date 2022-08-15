@@ -39,7 +39,7 @@ use fluvio_spu_schema::server::stream_fetch::{DefaultStreamFetchRequest};
 use crate::{
     core::{
         GlobalContext, spu_local_store, replica_localstore, smartmodule_localstore,
-        follower_notifier, status_update_owned,
+        follower_notifier, status_update_owned, config,
     },
     services::public::tests::create_filter_records,
 };
@@ -117,7 +117,7 @@ async fn test_stream_fetch_basic() {
         let topic = format!("test{}", version);
         let test = Replica::new((topic.clone(), 0), 5001, vec![5001]);
         let test_id = test.id.clone();
-        let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+        let replica = LeaderReplicaState::create(test, config(), status_update_owned())
             .await
             .expect("replica");
         ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -451,7 +451,7 @@ async fn test_stream_fetch_filter(
 
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -651,7 +651,7 @@ async fn test_stream_fetch_filter_individual(
     let topic = "testfilter";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -788,7 +788,7 @@ async fn test_stream_filter_error_fetch(
 
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -934,7 +934,7 @@ async fn test_stream_filter_max(
 
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -1081,7 +1081,7 @@ async fn test_stream_fetch_map(
     let topic = "test_map_error";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -1252,7 +1252,7 @@ async fn test_stream_fetch_map_error(
     let topic = "test_map_error";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -1401,7 +1401,7 @@ async fn test_stream_aggregate_fetch_single_batch(
     let topic = "testaggregate";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -1559,7 +1559,7 @@ async fn test_stream_aggregate_fetch_multiple_batch(
     let topic = "testaggregatebatch";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -1695,7 +1695,7 @@ async fn test_stream_fetch_and_new_request(
     let topic = "test_stream_fetch_and_new_request";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -1814,7 +1814,7 @@ async fn test_stream_fetch_invalid_wasm_module(
     let topic = "test_invalid_wasm";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -1923,7 +1923,7 @@ async fn test_stream_fetch_array_map(
     let topic = "test_array_map";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -2056,7 +2056,7 @@ async fn test_stream_fetch_filter_map(
     let topic = "test_filter_map";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -2193,7 +2193,7 @@ async fn test_stream_fetch_filter_with_params(
 
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -2409,7 +2409,7 @@ async fn test_stream_fetch_invalid_smartmodule(
     let topic = "test_invalid_smartmodule";
     let test = Replica::new((topic.to_owned(), 0), 5001, vec![5001]);
     let test_id = test.id.clone();
-    let replica = LeaderReplicaState::create(test, ctx.config(), status_update_owned())
+    let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
     ctx.leaders_state().insert(test_id, replica.clone()).await;
@@ -2481,7 +2481,7 @@ async fn test_stream_fetch_join(
     let test_left = Replica::new((topic_left.to_owned(), 0), 5001, vec![5001]);
     let test_id_left = test_left.id.clone();
     let replica_left =
-        LeaderReplicaState::create(test_left.clone(), ctx.config(), status_update_owned())
+        LeaderReplicaState::create(test_left.clone(), config(), status_update_owned())
             .await
             .expect("replica");
     ctx.leaders_state()
@@ -2493,7 +2493,7 @@ async fn test_stream_fetch_join(
     let test_right = Replica::new((topic_right.to_owned(), 0), 5001, vec![5001]);
     let test_id_right = test_right.id.clone();
     let replica_right =
-        LeaderReplicaState::create(test_right.clone(), ctx.config(), status_update_owned())
+        LeaderReplicaState::create(test_right.clone(), config(), status_update_owned())
             .await
             .expect("replica");
     replica_localstore().insert(test_right);
