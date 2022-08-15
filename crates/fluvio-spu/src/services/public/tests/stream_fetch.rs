@@ -38,10 +38,11 @@ use fluvio_spu_schema::{
 use fluvio_spu_schema::server::stream_fetch::{DefaultStreamFetchRequest};
 use crate::{
     core::{
-        GlobalContext, spu_local_store, replica_localstore, smartmodule_localstore,
-        follower_notifier, status_update_owned, config,
+        spu_local_store, replica_localstore, smartmodule_localstore, status_update_owned, config,
+        initialize,
     },
     services::public::tests::create_filter_records,
+    replication::{ReplicaContext, default_replica_ctx, follower_notifier},
 };
 use crate::config::SpuConfig;
 use crate::replication::leader::LeaderReplicaState;
@@ -102,15 +103,17 @@ async fn test_stream_fetch_basic() {
     let addr = format!("127.0.0.1:{}", port);
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path;
-    let ctx = GlobalContext::new_shared_context(spu_config);
+    initialize(spu_config);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
 
     let client_socket =
         MultiplexerSocket::new(FluvioSocket::connect(&addr).await.expect("connect"));
+
+    let ctx = default_replica_ctx();
 
     // perform for two versions
     for version in 10..11 {
@@ -300,18 +303,13 @@ async fn legacy_test<Fut, TestFn>(
     test_fn: TestFn,
 ) where
     Fut: Future<Output = ()>,
-    TestFn: FnOnce(
-        Arc<GlobalContext<FileReplica>>,
-        PathBuf,
-        Option<LegacySmartModulePayload>,
-        Option<SmartModuleInvocation>,
-    ) -> Fut,
+    TestFn: FnOnce(PathBuf, Option<LegacySmartModulePayload>, Option<SmartModuleInvocation>) -> Fut,
 {
     let test_path = temp_dir().join(test_name);
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path.clone();
+    initialize(spu_config);
 
-    let ctx = GlobalContext::new_shared_context(spu_config);
     let wasm = read_wasm_module(module_name);
     let wasm_payload = LegacySmartModulePayload {
         wasm: SmartModuleWasmCompressed::Raw(wasm),
@@ -319,7 +317,7 @@ async fn legacy_test<Fut, TestFn>(
         ..Default::default()
     };
 
-    test_fn(ctx, test_path, Some(wasm_payload), None).await
+    test_fn(test_path, Some(wasm_payload), None).await
 }
 
 async fn adhoc_test<Fut, TestFn>(
@@ -329,18 +327,13 @@ async fn adhoc_test<Fut, TestFn>(
     test_fn: TestFn,
 ) where
     Fut: Future<Output = ()>,
-    TestFn: FnOnce(
-        Arc<GlobalContext<FileReplica>>,
-        PathBuf,
-        Option<LegacySmartModulePayload>,
-        Option<SmartModuleInvocation>,
-    ) -> Fut,
+    TestFn: FnOnce(PathBuf, Option<LegacySmartModulePayload>, Option<SmartModuleInvocation>) -> Fut,
 {
     let test_path = temp_dir().join(test_name);
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path.clone();
 
-    let ctx = GlobalContext::new_shared_context(spu_config);
+    initialize(spu_config);
     let wasm = zip(read_wasm_module(module_name));
     let smartmodule = SmartModuleInvocation {
         wasm: SmartModuleInvocationWasm::AdHoc(wasm),
@@ -348,7 +341,7 @@ async fn adhoc_test<Fut, TestFn>(
         ..Default::default()
     };
 
-    test_fn(ctx, test_path, None, Some(smartmodule)).await
+    test_fn(test_path, None, Some(smartmodule)).await
 }
 
 async fn predefined_test<Fut, TestFn>(
@@ -358,18 +351,13 @@ async fn predefined_test<Fut, TestFn>(
     test_fn: TestFn,
 ) where
     Fut: Future<Output = ()>,
-    TestFn: FnOnce(
-        Arc<GlobalContext<FileReplica>>,
-        PathBuf,
-        Option<LegacySmartModulePayload>,
-        Option<SmartModuleInvocation>,
-    ) -> Fut,
+    TestFn: FnOnce(PathBuf, Option<LegacySmartModulePayload>, Option<SmartModuleInvocation>) -> Fut,
 {
     let test_path = temp_dir().join(test_name);
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path.clone();
 
-    let ctx = GlobalContext::new_shared_context(spu_config);
+    initialize(spu_config);
     load_wasm_module(module_name);
     let smartmodule = SmartModuleInvocation {
         wasm: SmartModuleInvocationWasm::Predefined(module_name.to_owned()),
@@ -377,7 +365,7 @@ async fn predefined_test<Fut, TestFn>(
         ..Default::default()
     };
 
-    test_fn(ctx, test_path, None, Some(smartmodule)).await
+    test_fn(test_path, None, Some(smartmodule)).await
 }
 
 const FLUVIO_WASM_FILTER: &str = "fluvio_wasm_filter";
@@ -427,7 +415,6 @@ async fn test_stream_fetch_filter_generic() {
 }
 
 async fn test_stream_fetch_filter(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -437,7 +424,7 @@ async fn test_stream_fetch_filter(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -454,7 +441,10 @@ async fn test_stream_fetch_filter(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     let stream_request = DefaultStreamFetchRequest {
         topic: topic.to_owned(),
@@ -630,7 +620,6 @@ async fn test_stream_fetch_filter_individual_generic() {
 }
 
 async fn test_stream_fetch_filter_individual(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -640,7 +629,7 @@ async fn test_stream_fetch_filter_individual(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -654,7 +643,10 @@ async fn test_stream_fetch_filter_individual(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     let stream_request = DefaultStreamFetchRequest {
         topic: topic.to_owned(),
@@ -764,7 +756,6 @@ async fn test_stream_filter_error_fetch_generic() {
 }
 
 async fn test_stream_filter_error_fetch(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -774,7 +765,7 @@ async fn test_stream_filter_error_fetch(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -791,7 +782,10 @@ async fn test_stream_filter_error_fetch(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     let stream_request = DefaultStreamFetchRequest {
         topic: topic.to_owned(),
@@ -910,7 +904,6 @@ async fn test_stream_filter_max_generic() {
 
 /// test filter with max bytes
 async fn test_stream_filter_max(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -920,7 +913,7 @@ async fn test_stream_filter_max(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -937,7 +930,10 @@ async fn test_stream_filter_max(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     // write 2 batches each with 10 records
     //debug!("records: {:#?}", records);
@@ -1057,7 +1053,6 @@ async fn test_stream_fetch_map_adhoc() {
 }
 
 async fn test_stream_fetch_map(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -1068,7 +1063,7 @@ async fn test_stream_fetch_map(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -1084,7 +1079,10 @@ async fn test_stream_fetch_map(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     let stream_request = DefaultStreamFetchRequest {
         topic: topic.to_owned(),
@@ -1228,7 +1226,6 @@ async fn test_stream_fetch_map_error_generic() {
 }
 
 async fn test_stream_fetch_map_error(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -1239,7 +1236,7 @@ async fn test_stream_fetch_map_error(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -1255,7 +1252,10 @@ async fn test_stream_fetch_map_error(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     let stream_request = DefaultStreamFetchRequest {
         topic: topic.to_owned(),
@@ -1380,7 +1380,6 @@ async fn test_stream_aggregate_fetch_single_batch_generic() {
 }
 
 async fn test_stream_aggregate_fetch_single_batch(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -1390,7 +1389,7 @@ async fn test_stream_aggregate_fetch_single_batch(
     let port = portpicker::pick_unused_port().expect("No free ports left");
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -1404,7 +1403,10 @@ async fn test_stream_aggregate_fetch_single_batch(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     let stream_request = DefaultStreamFetchRequest {
         topic: topic.to_owned(),
@@ -1538,7 +1540,6 @@ async fn test_stream_aggregate_fetch_multiple_batch_generic() {
 }
 
 async fn test_stream_aggregate_fetch_multiple_batch(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -1548,7 +1549,7 @@ async fn test_stream_aggregate_fetch_multiple_batch(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -1562,7 +1563,10 @@ async fn test_stream_aggregate_fetch_multiple_batch(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     // Aggregate 6 records in 2 batches
     // First batch:
@@ -1673,7 +1677,6 @@ async fn test_stream_fetch_and_new_request_adhoc() {
 }
 
 async fn test_stream_fetch_and_new_request(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -1683,7 +1686,7 @@ async fn test_stream_fetch_and_new_request(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -1698,7 +1701,10 @@ async fn test_stream_fetch_and_new_request(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     let stream_request = DefaultStreamFetchRequest {
         topic: topic.to_owned(),
@@ -1734,7 +1740,7 @@ async fn test_stream_fetch_invalid_wasm_module_legacy() {
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path.clone();
 
-    let ctx = GlobalContext::new_shared_context(spu_config);
+    initialize(spu_config);
     let wasm = Vec::from("Hello, world, I'm not a valid WASM module!");
     let wasm_payload = LegacySmartModulePayload {
         wasm: SmartModuleWasmCompressed::Raw(wasm),
@@ -1742,7 +1748,7 @@ async fn test_stream_fetch_invalid_wasm_module_legacy() {
         ..Default::default()
     };
 
-    test_stream_fetch_invalid_wasm_module(ctx, test_path, Some(wasm_payload), None).await
+    test_stream_fetch_invalid_wasm_module(test_path, Some(wasm_payload), None).await
 }
 
 #[fluvio_future::test(ignore)]
@@ -1751,7 +1757,8 @@ async fn test_stream_fetch_invalid_wasm_module_adhoc() {
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path.clone();
 
-    let ctx = GlobalContext::new_shared_context(spu_config);
+    initialize(spu_config);
+
     let wasm = zip(Vec::from("Hello, world, I'm not a valid WASM module!"));
     let smartmodule = SmartModuleInvocation {
         wasm: SmartModuleInvocationWasm::AdHoc(wasm),
@@ -1759,7 +1766,7 @@ async fn test_stream_fetch_invalid_wasm_module_adhoc() {
         ..Default::default()
     };
 
-    test_stream_fetch_invalid_wasm_module(ctx, test_path, None, Some(smartmodule)).await
+    test_stream_fetch_invalid_wasm_module(test_path, None, Some(smartmodule)).await
 }
 
 #[fluvio_future::test(ignore)]
@@ -1768,7 +1775,7 @@ async fn test_stream_fetch_invalid_wasm_module_predefined() {
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path.clone();
 
-    let ctx = GlobalContext::new_shared_context(spu_config);
+    initialize(spu_config);
 
     let wasm = zip(Vec::from("Hello, world, I'm not a valid WASM module!"));
     smartmodule_localstore().insert(SmartModule {
@@ -1788,11 +1795,10 @@ async fn test_stream_fetch_invalid_wasm_module_predefined() {
         ..Default::default()
     };
 
-    test_stream_fetch_invalid_wasm_module(ctx, test_path, None, Some(smartmodule)).await
+    test_stream_fetch_invalid_wasm_module(test_path, None, Some(smartmodule)).await
 }
 
 async fn test_stream_fetch_invalid_wasm_module(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -1802,7 +1808,7 @@ async fn test_stream_fetch_invalid_wasm_module(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -1817,7 +1823,10 @@ async fn test_stream_fetch_invalid_wasm_module(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     let stream_request = DefaultStreamFetchRequest {
         topic: topic.to_owned(),
@@ -1901,7 +1910,6 @@ async fn test_stream_fetch_array_map_generic() {
 }
 
 async fn test_stream_fetch_array_map(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -1911,7 +1919,7 @@ async fn test_stream_fetch_array_map(
     let port = portpicker::pick_unused_port().expect("No free ports left");
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -1926,7 +1934,10 @@ async fn test_stream_fetch_array_map(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     // Input: One JSON record with 10 ints: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     let mut records = BatchProducer::builder()
@@ -2034,7 +2045,6 @@ async fn test_stream_fetch_filter_map_generic() {
 }
 
 async fn test_stream_fetch_filter_map(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -2044,7 +2054,7 @@ async fn test_stream_fetch_filter_map(
     let port = portpicker::pick_unused_port().expect("No free ports left");
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -2059,7 +2069,10 @@ async fn test_stream_fetch_filter_map(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     // Input: the following records:
     //
@@ -2169,7 +2182,6 @@ async fn test_stream_fetch_filter_with_params_generic() {
 }
 
 async fn test_stream_fetch_filter_with_params(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -2180,7 +2192,7 @@ async fn test_stream_fetch_filter_with_params(
     let port = portpicker::pick_unused_port().expect("No free ports left");
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -2196,7 +2208,10 @@ async fn test_stream_fetch_filter_with_params(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx()
+        .leaders_state()
+        .insert(test_id, replica.clone())
+        .await;
 
     let mut params = BTreeMap::new();
     params.insert("key".to_string(), "b".to_string());
@@ -2329,7 +2344,8 @@ async fn test_stream_fetch_invalid_smartmodule_legacy() {
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path.clone();
 
-    let ctx = GlobalContext::new_shared_context(spu_config);
+    initialize(spu_config);
+
     let wasm = include_bytes!("test_data/filter_missing_attribute.wasm").to_vec();
     let wasm_payload = LegacySmartModulePayload {
         wasm: SmartModuleWasmCompressed::Raw(wasm),
@@ -2337,7 +2353,7 @@ async fn test_stream_fetch_invalid_smartmodule_legacy() {
         ..Default::default()
     };
 
-    test_stream_fetch_invalid_smartmodule(ctx, test_path, Some(wasm_payload), None).await
+    test_stream_fetch_invalid_smartmodule(test_path, Some(wasm_payload), None).await
 }
 
 #[fluvio_future::test(ignore)]
@@ -2346,7 +2362,8 @@ async fn test_stream_fetch_invalid_smartmodule_adhoc() {
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path.clone();
 
-    let ctx = GlobalContext::new_shared_context(spu_config);
+    initialize(spu_config);
+
     let wasm = zip(include_bytes!("test_data/filter_missing_attribute.wasm").to_vec());
     let smartmodule = SmartModuleInvocation {
         wasm: SmartModuleInvocationWasm::AdHoc(wasm),
@@ -2354,7 +2371,7 @@ async fn test_stream_fetch_invalid_smartmodule_adhoc() {
         ..Default::default()
     };
 
-    test_stream_fetch_invalid_smartmodule(ctx, test_path, None, Some(smartmodule)).await
+    test_stream_fetch_invalid_smartmodule(test_path, None, Some(smartmodule)).await
 }
 
 #[fluvio_future::test(ignore)]
@@ -2363,7 +2380,7 @@ async fn test_stream_fetch_invalid_smartmodule_predefined() {
     let mut spu_config = SpuConfig::default();
     spu_config.log.base_dir = test_path.clone();
 
-    let ctx = GlobalContext::new_shared_context(spu_config);
+    initialize(spu_config);
 
     let wasm = zip(include_bytes!("test_data/filter_missing_attribute.wasm").to_vec());
     smartmodule_localstore().insert(SmartModule {
@@ -2383,11 +2400,10 @@ async fn test_stream_fetch_invalid_smartmodule_predefined() {
         ..Default::default()
     };
 
-    test_stream_fetch_invalid_smartmodule(ctx, test_path, None, Some(smartmodule)).await
+    test_stream_fetch_invalid_smartmodule(test_path, None, Some(smartmodule)).await
 }
 
 async fn test_stream_fetch_invalid_smartmodule(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -2397,7 +2413,7 @@ async fn test_stream_fetch_invalid_smartmodule(
     let port = portpicker::pick_unused_port().expect("No free ports left");
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -2412,7 +2428,7 @@ async fn test_stream_fetch_invalid_smartmodule(
     let replica = LeaderReplicaState::create(test, config(), status_update_owned())
         .await
         .expect("replica");
-    ctx.leaders_state().insert(test_id, replica.clone()).await;
+    default_replica_ctx().leaders_state().insert(test_id, replica.clone()).await;
 
     let stream_request = DefaultStreamFetchRequest {
         topic: topic.to_owned(),
@@ -2449,7 +2465,6 @@ async fn test_stream_fetch_invalid_smartmodule(
 }
 
 async fn test_stream_fetch_join(
-    ctx: Arc<GlobalContext<FileReplica>>,
     test_path: PathBuf,
     wasm_payload: Option<LegacySmartModulePayload>,
     smartmodule: Option<SmartModuleInvocation>,
@@ -2465,7 +2480,7 @@ async fn test_stream_fetch_join(
 
     let addr = format!("127.0.0.1:{}", port);
 
-    let server_end_event = create_public_server(addr.to_owned(), ctx.clone()).run();
+    let server_end_event = create_public_server(addr.to_owned()).run();
 
     // wait for stream controller async to start
     sleep(Duration::from_millis(100)).await;
@@ -2484,7 +2499,7 @@ async fn test_stream_fetch_join(
         LeaderReplicaState::create(test_left.clone(), config(), status_update_owned())
             .await
             .expect("replica");
-    ctx.leaders_state()
+    default_replica_ctx().leaders_state()
         .insert(test_id_left, replica_left.clone())
         .await;
 
@@ -2497,7 +2512,7 @@ async fn test_stream_fetch_join(
             .await
             .expect("replica");
     replica_localstore().insert(test_right);
-    ctx.leaders_state()
+    default_replica_ctx().leaders_state()
         .insert(test_id_right, replica_right.clone())
         .await;
 
