@@ -41,6 +41,7 @@ static DERIVEDSTREAM_STORE: OnceCell<SharedStreamStreamLocalStore> = OnceCell::n
 static FOLLOWER_NOTIFIER: OnceCell<SharedSpuUpdates> = OnceCell::new();
 static STATUS_UPDATE: OnceCell<SharedStatusUpdate> = OnceCell::new();
 static CONFIG: OnceCell<SharedSpuConfig> = OnceCell::new();
+static SMART_ENGINE: OnceCell<SmartEngine> = OnceCell::new();
 
 pub(crate) fn spu_local_store() -> &'static SpuLocalStore {
     SPU_STORE.get().unwrap()
@@ -94,6 +95,10 @@ pub(crate) async fn sync_follower_update() {
         .await;
 }
 
+pub(crate) fn smartengine_owned() -> SmartEngine {
+    SMART_ENGINE.get().unwrap().clone()
+}
+
 /// initialize global variables
 pub(crate) fn initialize(spu_config: SpuConfig) {
     SPU_STORE.set(SpuLocalStore::new_shared()).unwrap();
@@ -108,6 +113,7 @@ pub(crate) fn initialize(spu_config: SpuConfig) {
     FOLLOWER_NOTIFIER.set(FollowerNotifier::shared()).unwrap();
     STATUS_UPDATE.set(StatusMessageSink::shared()).unwrap();
     CONFIG.set(Arc::new(spu_config)).unwrap();
+    SMART_ENGINE.set(SmartEngine::default()).unwrap();
 
     /*
     let replicas = ReplicaStore::new_shared();
@@ -132,7 +138,6 @@ pub(crate) fn initialize(spu_config: SpuConfig) {
 pub struct GlobalContext<S> {
     leaders_state: SharedReplicaLeadersState<S>,
     followers_state: SharedFollowersState<S>,
-    sm_engine: SmartEngine,
     leaders: Arc<LeaderConnections>,
 }
 
@@ -155,7 +160,6 @@ where
         GlobalContext {
             leaders_state: ReplicaLeadersState::new_shared(),
             followers_state: FollowersState::new_shared(),
-            sm_engine: SmartEngine::default(),
             leaders: LeaderConnections::shared(spus, replicas),
         }
     }
@@ -180,11 +184,6 @@ where
     */
 
     /// notify all follower handlers with SPU changes
-    #[instrument(skip(self))]
-
-    pub fn smartengine_owned(&self) -> SmartEngine {
-        self.sm_engine.clone()
-    }
 
     #[allow(unused)]
     pub fn leaders(&self) -> Arc<LeaderConnections> {
