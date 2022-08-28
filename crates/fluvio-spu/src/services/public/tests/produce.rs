@@ -12,7 +12,6 @@ use fluvio_future::timer::sleep;
 use fluvio_socket::{MultiplexerSocket, FluvioSocket};
 use flv_util::fixture::ensure_clean_dir;
 
-
 use crate::{
     config::SpuConfig,
     core::{replica_localstore, status_update_owned, config, initialize},

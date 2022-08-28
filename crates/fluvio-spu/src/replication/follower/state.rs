@@ -13,6 +13,7 @@ use fluvio_protocol::record::RecordSet;
 use fluvio_protocol::record::Offset;
 use fluvio_storage::{FileReplica, StorageError, ReplicaStorage, ReplicaStorageConfig};
 use fluvio_types::SpuId;
+use crate::replication::FileReplicaContext;
 use crate::replication::leader::ReplicaOffsetRequest;
 use crate::core::{config};
 use crate::storage::SharableReplicaStorage;

@@ -10,8 +10,7 @@ use fluvio_spu_schema::fetch::{
 };
 use fluvio_controlplane_metadata::partition::ReplicaKey;
 
-use crate::core::DefaultSharedGlobalContext;
-use dataplane::record::FileRecordSet;
+use crate::replication::default_replica_ctx;
 
 /// perform log fetch request using zero copy write
 #[instrument(

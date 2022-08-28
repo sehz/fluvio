@@ -1,22 +1,20 @@
 use fluvio_controlplane_metadata::derivedstream::{DerivedStreamInputRef, DerivedStreamStep};
+use fluvio_protocol::link::ErrorCode;
+use fluvio_spu_schema::server::stream_fetch::DerivedStreamInvocation;
 use tracing::{debug, error};
 
-use fluvio_controlplane_metadata::derivedstream::{DerivedStreamInputRef, DerivedStreamStep};
-use dataplane::ErrorCode;
-use fluvio::{
-    ConsumerConfig,
-    consumer::{SmartModuleInvocation, DerivedStreamInvocation, SmartModuleKind},
+use fluvio_smartengine::{
+    metadata::{
+        LegacySmartModulePayload, SmartModuleContextData, SmartModuleInvocationWasm,
+        SmartModuleWasmCompressed, SmartModuleInvocation, SmartModuleKind,
+    },
+    engine::SmartModuleInstance,
 };
-use fluvio_smartengine::SmartModuleInstance;
-use fluvio_spu_schema::server::stream_fetch::{
-    SmartModuleInvocationWasm, LegacySmartModulePayload, SmartModuleWasmCompressed,
-    SmartModuleContextData,
-};
-use futures_util::{ stream::BoxStream};
+use fluvio::{ConsumerConfig};
 
-use crate::{
-    core::{smartmodule_localstore, derivedstream_store, smartengine_owned, leaders},
-};
+use futures_util::{StreamExt, stream::BoxStream};
+
+use crate::core::{leaders, derivedstream_store, smartmodule_localstore, smartengine_owned};
 
 pub struct SmartModuleContext {
     pub smartmodule_instance: Box<dyn SmartModuleInstance>,

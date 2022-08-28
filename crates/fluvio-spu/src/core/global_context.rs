@@ -5,11 +5,10 @@
 
 use std::sync::Arc;
 
+use fluvio_smartengine::engine::SmartEngine;
 use once_cell::sync::OnceCell;
-use tracing::{debug, error, instrument};
 
 use fluvio_types::SpuId;
-use fluvio_storage::{ReplicaStorage};
 
 use crate::config::SpuConfig;
 use crate::control_plane::{StatusMessageSink, SharedStatusUpdate};
