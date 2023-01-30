@@ -15,7 +15,7 @@ doc = false
 required-features = ["cli", "fluvio-future/subscriber"]
 
 [features]
-cli = ["clap"]
+cli = ["clap","polars"]
 fixture = []
 
 [dependencies]
@@ -35,7 +35,7 @@ clap = { workspace = true, features = ["std", "derive", "help", "usage", "error-
 serde = { workspace = true, features = ['derive','std'] }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
-
+polars = { version = "0.26.1", features = ["lazy","parquet"], optional = true }
 
 # Fluvio dependencies
 fluvio-types = { workspace = true, features = ["events",]}

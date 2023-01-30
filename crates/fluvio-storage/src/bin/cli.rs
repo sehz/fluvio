@@ -15,6 +15,7 @@ use fluvio_storage::{
 };
 use fluvio_storage::records::FileRecords;
 
+use analy::AnalyOpt;
 ///
 /// Bunch of storage utilities:
 ///
@@ -35,6 +36,8 @@ enum Main {
     /// show information about replica
     #[clap(name = "replica")]
     Replica(ReplicaOpt),
+
+    Analy(AnalyOpt),
 }
 
 fn main() {
@@ -48,6 +51,7 @@ fn main() {
             Main::Index(opt) => dump_index(opt).await,
             Main::ValidateSegment(opt) => validate_segment(opt).await,
             Main::Replica(opt) => replica_info(opt).await,
+            Main::Analy(opt) => analy::average(opt),
         }
     });
     if let Err(err) = result {
@@ -247,4 +251,34 @@ pub(crate) async fn replica_info(opt: ReplicaOpt) -> Result<()> {
     println!("leo: {:#?}", replica.get_leo());
 
     Ok(())
+}
+
+pub(crate) mod analy {
+
+    use super::*;
+
+    use polars::prelude::*;
+
+    #[derive(Debug, Parser)]
+    pub(crate) struct AnalyOpt {
+        #[clap(value_parser)]
+        file_name: PathBuf,
+    }
+
+    /// perform analy on arrow format
+    pub(crate) fn average(opt: AnalyOpt) -> Result<()> {
+        let file_path = opt.file_name;
+
+        let lf1 = LazyFrame::scan_parquet(file_path, Default::default())?
+            .groupby([col("route")])
+            .agg([
+                // expressions can be combined into powerful aggregations
+                col("speed").mean().alias("avg_speed"),
+            ])
+            .collect()?;
+
+        println!("{:?}", lf1);
+
+        Ok(())
+    }
 }
