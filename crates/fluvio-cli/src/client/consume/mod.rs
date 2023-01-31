@@ -13,6 +13,7 @@ pub use cmd::ConsumeOpt;
 
 mod cmd {
 
+    use std::fs::File;
     use std::path::Path;
     use std::time::{UNIX_EPOCH, Duration};
     use std::{io::Error as IoError, path::PathBuf};
@@ -20,6 +21,7 @@ mod cmd {
     use std::collections::BTreeMap;
     use std::fmt::Debug;
     use std::sync::Arc;
+
 
     use tracing::{debug, trace, instrument};
     use flate2::Compression;
@@ -155,6 +157,12 @@ mod cmd {
             ignore_case = true
         )]
         pub output: Option<ConsumeOutputType>,
+
+        // output to parquet file
+        #[clap(
+            long,
+        )]
+        pub parquet: Option<PathBuf>,
 
         /// Name of the smartmodule
         #[clap(
@@ -395,6 +403,14 @@ mod cmd {
         ) -> Result<()> {
             self.print_status();
             let maybe_potential_end_offset: Option<u32> = self.end;
+
+            let out_file = if let Some(file) = &self.parquet {
+                let fs = File::create(file)?;
+                let writer = parquet2::write::Writer::new(fs, self.topic.clone())?;
+            } else {
+                None
+            };
+
             let mut stream = consumer.stream_with_config(offset, config).await?;
 
             let templates = match self.format.as_deref() {
@@ -600,7 +616,7 @@ mod cmd {
                     }
 
                     value
-                }
+                },
                 (Some(ConsumeOutputType::full_table), None) => {
                     if let Some(ref mut table) = table_model {
                         format_fancy_table_record(record.value(), table)
@@ -783,7 +799,7 @@ mod cmd {
         json,
         raw,
         table,
-        full_table,
+        full_table
     }
 
     /// Consume output type defaults to text formatting
