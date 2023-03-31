@@ -2560,7 +2560,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
- "syn 1.0.109",
+ "syn 2.0.4",
  "trybuild 1.0.80",
 ]
 
@@ -2779,7 +2779,7 @@ dependencies = [
  "fluvio-protocol",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.4",
  "tracing",
  "trybuild 1.0.80",
 ]
@@ -2913,7 +2913,7 @@ version = "0.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.4",
 ]
 
 [[package]]
@@ -3127,7 +3127,7 @@ version = "0.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.4",
  "trybuild 1.0.42",
 ]
 
@@ -3146,7 +3146,7 @@ dependencies = [
  "quote",
  "rand 0.8.5",
  "serde_json",
- "syn 1.0.109",
+ "syn 2.0.4",
  "tokio",
  "tracing",
  "trybuild 1.0.42",
@@ -3189,7 +3189,7 @@ dependencies = [
  "semver 1.0.17",
  "serde",
  "serde_json",
- "syn 1.0.109",
+ "syn 2.0.4",
  "tokio",
  "tracing",
  "uuid",
