@@ -17,9 +17,10 @@ doc = false
 [dependencies]
 anyhow = { workspace = true  }
 async-trait = { workspace = true }
-futures = {workspace = true }
 clap = { workspace = true, features = ["std", "derive", "env"]}
-
+futures = {workspace = true }
+tracing = { workspace = true }
 
 fluvio = { workspace = true }
+fluvio-types = { workspace = true, features = ["events"] }
 fluvio-future = { workspace = true,features = ["subscriber"] }
