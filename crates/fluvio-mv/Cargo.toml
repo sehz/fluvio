@@ -15,13 +15,11 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
-cfg-if = { workspace = true }
-anyhow = { workspace = true }
-tracing = { workspace = true }
-bytes = { workspace = true }
+anyhow = { workspace = true  }
+async-trait = { workspace = true }
+futures = {workspace = true }
 clap = { workspace = true, features = ["std", "derive", "env"]}
-thiserror = { workspace = true }
-
-fluvio-future = { workspace = true,features = [ "subscriber"] }
 
 
+fluvio = { workspace = true }
+fluvio-future = { workspace = true,features = ["subscriber"] }
