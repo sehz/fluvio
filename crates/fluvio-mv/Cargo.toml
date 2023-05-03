@@ -1,0 +1,27 @@
+[package]
+name = "fluvio-mv"
+edition = "2021"
+version = "0.0.0"
+authors = ["fluvio.io"]
+description = "Fluvio Materialize View"
+repository = "https://github.com/infinyon/fluvio"
+license = "Apache-2.0"
+publish = false
+
+
+[[bin]]
+name = "fluvio-spu"
+path = "src/main.rs"
+doc = false
+
+[dependencies]
+cfg-if = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true, features = ["std", "derive", "env"]}
+thiserror = { workspace = true }
+
+fluvio-future = { workspace = true,features = [ "subscriber"] }
+
+
