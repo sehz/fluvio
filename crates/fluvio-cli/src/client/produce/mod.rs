@@ -18,7 +18,7 @@ mod cmd {
     #[cfg(feature = "producer-file-io")]
     use futures::future::join_all;
     use clap::Parser;
-    use tracing::{error, warn};
+    use tracing::{error, warn, debug};
     use humantime::parse_duration;
     use anyhow::Result;
 
@@ -421,6 +421,8 @@ mod cmd {
 
             #[cfg(feature = "producer-file-io")]
             if let Some(path) = &self.file {
+
+                debug!( path = %path.display(), "reading file");
                 let reader = BufReader::new(File::open(path)?);
                 let mut produce_outputs = vec![];
                 for line in reader.lines().map_while(|it| it.ok()) {
