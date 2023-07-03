@@ -86,7 +86,7 @@ fn init(_params: SmartModuleExtraParams) -> Result<()> {
 
 #[smartmodule(filter_map)]
 pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordData)>> {
-    let mqtt: MQTTEvent = serde_json::from_slice(record.value.as_ref()).expect("parse json");
+    let mqtt: MQTTEvent = serde_json::from_slice(record.value.as_ref())?;
     let event = mqtt.payload.VP;
 
     // for now emit same event

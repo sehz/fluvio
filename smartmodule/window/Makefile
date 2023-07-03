@@ -3,7 +3,7 @@ build:
 
 
 test_json: build
-	smdk test --file smartmodule/window/test/test.json --raw --wasm-file ../../target/wasm32-unknown-unknown/release-lto/window_example.wasm
+	smdk test --file test/test.json --raw --wasm-file ../../target/wasm32-unknown-unknown/release-lto/window_example.wasm
 
 
 unit_test:
