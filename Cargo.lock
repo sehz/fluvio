@@ -6722,6 +6722,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sm-window"
+version = "0.0.0"
+dependencies = [
+ "fluvio-smartmodule",
+ "once_cell",
+ "regex",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

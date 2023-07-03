@@ -52,6 +52,7 @@ members = [
     "crates/cargo-builder",
     "connector/json-test-connector",
     "connector/sink-test-connector",
+    "smartmodule/window"
 ]
 
 exclude = ["smartmodule/regex-filter"]
