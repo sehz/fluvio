@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::{sync::OnceLock, marker::PhantomData};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,14 +8,23 @@ use fluvio_smartmodule::{
     RecordData,
 };
 
-#[derive(Debug)]
-struct WindowState {}
+#[derive(Debug, Default)]
+struct WindowState<K, V> {
+    phantom: PhantomData<K>,
+    phantom2: PhantomData<V>,
+}
 
-impl WindowState {
+impl<K, V> WindowState<K, V> {
     fn new() -> Self {
-        Self {}
+        Self {
+            phantom: PhantomData,
+            phantom2: PhantomData,
+        }
     }
 }
+
+type Key = u16;
+type DefaultWindowState = WindowState<Key, VehicleTracking>;
 
 #[derive(Debug, Deserialize)]
 struct MQTTEvent {
@@ -38,7 +47,7 @@ struct VehiclePosition {
     long: f32,     // WGS 84 longitude in degrees.null if location is unavailable.
     dir: String, // Route direction of the trip. After type conversion matches direction_id in GTFS and the topic. Either "1" or "2".
     oper: u16, // Unique ID of the operator running the trip (i.e. this value can be different than the operator ID in the topic, for example if the service has been subcontracted to another operator). The unique ID does not have prefix zeroes here.
-    veh: u16, // Vehicle number that can be seen painted on the side of the vehicle, often next to the front door. Different operators may use overlapping vehicle numbers. Matches vehicle_number in the topic except without the prefix zeroes.
+    veh: Key, // Vehicle number that can be seen painted on the side of the vehicle, often next to the front door. Different operators may use overlapping vehicle numbers. Matches vehicle_number in the topic except without the prefix zeroes.
     tst: String, // UTC timestamp with millisecond precision from the vehicle in ISO 8601 format (yyyy-MM-dd'T'HH:mm:ss.SSSZ).
     tsi: u64,    // Unix time in seconds from the vehicle.
     spd: f32,    // Speed of the vehicle, in meters per second (m/s).
@@ -75,7 +84,7 @@ struct VehicleTracking {
     long: f32,
 }
 
-static STATE: OnceLock<WindowState> = OnceLock::new();
+static STATE: OnceLock<DefaultWindowState> = OnceLock::new();
 
 #[smartmodule(init)]
 fn init(_params: SmartModuleExtraParams) -> Result<()> {
