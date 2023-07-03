@@ -9,22 +9,33 @@ use fluvio_smartmodule::{
 };
 
 #[derive(Debug, Default)]
-struct WindowState<K, V> {
+struct TumblingWindow<K, V, S> {
     phantom: PhantomData<K>,
     phantom2: PhantomData<V>,
+    phantom3: PhantomData<S>,
 }
 
-impl<K, V> WindowState<K, V> {
+impl<K, V, S> TumblingWindow<K, V, S>
+where
+    S: Default,
+{
     fn new() -> Self {
         Self {
             phantom: PhantomData,
             phantom2: PhantomData,
+            phantom3: PhantomData,
         }
+    }
+
+    fn add(&self, _key: K, _value: &V) {}
+
+    fn get_state(&self, _key: K) -> Option<S> {
+        Some(S::default())
     }
 }
 
 type Key = u16;
-type DefaultWindowState = WindowState<Key, VehicleTracking>;
+type DefaultWindowState = TumblingWindow<Key, VehiclePosition, VehicleStatistics>;
 
 #[derive(Debug, Deserialize)]
 struct MQTTEvent {
@@ -66,22 +77,27 @@ struct VehiclePosition {
     occu: u16, // Integer describing passenger occupancy level of the vehicle. Valid values are on interval [0, 100]. Currently passenger occupancy level is only available for Suomenlinna ferries as a proof-of-concept. The value will be available shortly after departure when the ferry operator has registered passenger count for the journey.For other vehicles, currently only values used are 0 (= vehicle has space and is accepting passengers) and 100 (= vehicle is full and might not accept passengers)
 }
 
-impl VehiclePosition {
-    // map as tracking
-    fn map(&self) -> VehicleTracking {
-        VehicleTracking {
-            vehicle: self.veh,
-            lat: self.lat,
-            long: self.long,
+impl VehiclePosition {}
+
+#[derive(Debug, Serialize)]
+struct VehicleStatistics {
+    vehicle: u16,
+    avg_speed: f64, // average speed of vehicle
+}
+
+impl Default for VehicleStatistics {
+    fn default() -> Self {
+        Self {
+            vehicle: 22,
+            avg_speed: 3.2,
         }
     }
 }
 
-#[derive(Debug, Serialize)]
-struct VehicleTracking {
-    vehicle: u16,
-    lat: f32,
-    long: f32,
+impl VehicleStatistics {
+    fn add(&mut self, _key: Key, value: VehicleStatistics) {
+        self.avg_speed = (self.avg_speed + value.avg_speed) / 2.0;
+    }
 }
 
 static STATE: OnceLock<DefaultWindowState> = OnceLock::new();
@@ -89,7 +105,7 @@ static STATE: OnceLock<DefaultWindowState> = OnceLock::new();
 #[smartmodule(init)]
 fn init(_params: SmartModuleExtraParams) -> Result<()> {
     STATE
-        .set(WindowState::new())
+        .set(TumblingWindow::new())
         .map_err(|err| eyre!("state init: {:#?}", err))
 }
 
@@ -101,10 +117,24 @@ pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordD
     // for now emit same event
 
     let key = event.veh.to_string();
-    let value = event.map();
+
+    // add to state
+    let stats = STATE.get().unwrap();
+    stats.add(event.veh, &event);
+
+    // get state
+    if let Some(state) = stats.get_state(event.veh) {
+        let value_out = serde_json::to_string(&state)?;
+        Ok(Some((Some(key.into()), RecordData::from(value_out))))
+    } else {
+        Ok(None)
+    }
+
+    /*
     let value_out = serde_json::to_string(&value)?;
 
     Ok(Some((Some(key.into()), RecordData::from(value_out))))
+    */
 }
 
 #[cfg(test)]
