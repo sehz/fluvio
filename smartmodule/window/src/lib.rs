@@ -17,7 +17,7 @@ struct TumblingWindow<K, V, S> {
 
 impl<K, V, S> TumblingWindow<K, V, S>
 where
-    S: Default,
+    S: Default + WindowElement,
 {
     fn new() -> Self {
         Self {
@@ -32,6 +32,10 @@ where
     fn get_state(&self, _key: K) -> Option<S> {
         Some(S::default())
     }
+}
+
+trait WindowElement {
+
 }
 
 type Key = u16;
@@ -100,6 +104,8 @@ impl VehicleStatistics {
     }
 }
 
+impl WindowElement for VehicleStatistics {}
+
 static STATE: OnceLock<DefaultWindowState> = OnceLock::new();
 
 #[smartmodule(init)]
@@ -136,6 +142,22 @@ pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordD
     Ok(Some((Some(key.into()), RecordData::from(value_out))))
     */
 }
+
+// TODO: window API. this need to be called by 
+/* 
+#[smartmodule(window(fetch))]
+pub fn window_fetch(time: Time) -> Result<Option<RecordData>> {
+    //
+}
+
+#[smartmodule(window(slide))]
+pub fn window_slice(time: Time) -> Result<Option<RecordData>> {
+    //
+}
+*/
+
+
+
 
 #[cfg(test)]
 mod test {
