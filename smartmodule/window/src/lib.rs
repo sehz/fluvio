@@ -47,7 +47,6 @@ struct VehiclePosition {
 }
 
 impl VehiclePosition {
-
     // map as tracking
     fn map(&self) -> VehicleTracking {
         VehicleTracking {
@@ -74,27 +73,16 @@ fn init(_params: SmartModuleExtraParams) -> Result<()> {
         .map_err(|err| eyre!("state init: {:#?}", err))
 }
 
-/*
-#[smartmodule(filter)]
-pub fn filter(record: &Record) -> Result<bool> {
-    let string = std::str::from_utf8(record.value.as_ref())?;
-    Ok(REGEX.get().unwrap().is_match(string))
-}
-*/
 
 #[smartmodule(filter_map)]
 pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordData)>> {
     let event: VehiclePosition = serde_json::from_slice(record.value.as_ref())?;
 
-    
     // for now emit same event
 
     let key = event.veh.to_string();
-    let value = serde_json::to_string(&event)?;
-    if int % 2 == 0 {
-        let output = int / 2;
-        Ok(Some((key.clone(), RecordData::from(output.to_string()))))
-    } else {
-        Ok(None)
-    }
+    let value = event.map();
+    let value_out = serde_json::to_string(&value)?;
+
+    Ok(Some((Some(key.into()), RecordData::from(value_out))))
 }
