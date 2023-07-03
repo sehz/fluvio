@@ -1,17 +1,17 @@
 use std::sync::OnceLock;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use fluvio_smartmodule::{
     smartmodule, Record, Result, eyre,
-    dataplane::smartmodule::{SmartModuleExtraParams, SmartModuleInitError},
+    dataplane::smartmodule::{SmartModuleExtraParams},
     RecordData,
 };
 
 #[derive(Debug)]
-struct State {}
+struct WindowState {}
 
-impl State {
+impl WindowState {
     fn new() -> Self {
         Self {}
     }
@@ -46,13 +46,32 @@ struct VehiclePosition {
     occu: u16, // Integer describing passenger occupancy level of the vehicle. Valid values are on interval [0, 100]. Currently passenger occupancy level is only available for Suomenlinna ferries as a proof-of-concept. The value will be available shortly after departure when the ferry operator has registered passenger count for the journey.For other vehicles, currently only values used are 0 (= vehicle has space and is accepting passengers) and 100 (= vehicle is full and might not accept passengers)
 }
 
-static REGEX: OnceLock<State> = OnceLock::new();
+impl VehiclePosition {
+
+    // map as tracking
+    fn map(&self) -> VehicleTracking {
+        VehicleTracking {
+            vehicle: self.veh,
+            lat: self.lat,
+            long: self.long,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct VehicleTracking {
+    vehicle: u16,
+    lat: f32,
+    long: f32,
+}
+
+static STATE: OnceLock<WindowState> = OnceLock::new();
 
 #[smartmodule(init)]
-fn init(params: SmartModuleExtraParams) -> Result<()> {
-    REGEX
-        .set(State::new())
-        .map_err(|err| eyre!("regex init: {:#?}", err))
+fn init(_params: SmartModuleExtraParams) -> Result<()> {
+    STATE
+        .set(WindowState::new())
+        .map_err(|err| eyre!("state init: {:#?}", err))
 }
 
 /*
@@ -67,10 +86,11 @@ pub fn filter(record: &Record) -> Result<bool> {
 pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordData)>> {
     let event: VehiclePosition = serde_json::from_slice(record.value.as_ref())?;
 
-    let key = record.key.clone();
-    let string = String::from_utf8_lossy(record.value.as_ref()).to_string();
-    let int: i32 = string.parse()?;
+    
+    // for now emit same event
 
+    let key = event.veh.to_string();
+    let value = serde_json::to_string(&event)?;
     if int % 2 == 0 {
         let output = int / 2;
         Ok(Some((key.clone(), RecordData::from(output.to_string()))))
