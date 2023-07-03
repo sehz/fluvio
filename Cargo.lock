@@ -6722,15 +6722,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sm-window"
-version = "0.0.0"
-dependencies = [
- "fluvio-smartmodule",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "smallvec"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8355,6 +8346,15 @@ dependencies = [
  "target-lexicon",
  "wasmparser",
  "wasmtime-environ",
+]
+
+[[package]]
+name = "window-example"
+version = "0.0.0"
+dependencies = [
+ "fluvio-smartmodule",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

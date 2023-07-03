@@ -1,5 +1,5 @@
 [package]
-name = "sm-window"
+name = "window-example"
 version = "0.0.0"
 authors = ["Fluvio Contributors <team@fluvio.io>"]
 edition = "2021"
