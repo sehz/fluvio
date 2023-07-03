@@ -421,7 +421,6 @@ mod cmd {
 
             #[cfg(feature = "producer-file-io")]
             if let Some(path) = &self.file {
-
                 debug!( path = %path.display(), "reading file");
                 let reader = BufReader::new(File::open(path)?);
                 let mut produce_outputs = vec![];

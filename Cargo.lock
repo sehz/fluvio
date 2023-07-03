@@ -6726,8 +6726,8 @@ name = "sm-window"
 version = "0.0.0"
 dependencies = [
  "fluvio-smartmodule",
- "once_cell",
- "regex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
