@@ -1,4 +1,7 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{sync::OnceLock, marker::PhantomData};
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 use serde::{Deserialize, Serialize};
 
@@ -12,35 +15,70 @@ use fluvio_smartmodule::{
 struct TumblingWindow<K, V, S> {
     phantom: PhantomData<K>,
     phantom2: PhantomData<V>,
-    phantom3: PhantomData<S>,
+    store: HashMap<K, S>,
 }
 
 impl<K, V, S> TumblingWindow<K, V, S>
 where
-    S: Default + WindowElement,
+    S: Default + WindowState,
+    K: PartialEq + Eq + Hash,
 {
     fn new() -> Self {
         Self {
             phantom: PhantomData,
             phantom2: PhantomData,
-            phantom3: PhantomData,
+            store: HashMap::new(),
         }
     }
 
-    fn add(&self, _key: K, _value: &V) {}
+    /// add new value to state
+    fn add(&self, key: &K, value: &V) {
+        if let Some(state) = self.store.get(&key) {
+            state.add(value, state);
+        } else {
+            /*
+            let mut state = S::default();
+            state.add(key, value);
+            self.store.insert(_key, state);
+            */
+        }
+    }
 
-    fn get_state(&self, _key: K) -> Option<S> {
-        Some(S::default())
+    fn get_state(&self, key: &K) -> Option<&S> {
+        self.store.get(key)
     }
 }
 
-trait WindowElement {
-
+trait WindowState {
+    fn add<K, V>(&self, key: K, value: &V);
 }
 
 type Key = u16;
 type DefaultWindowState = TumblingWindow<Key, VehiclePosition, VehicleStatistics>;
 
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct AtomicF64 {
+    storage: AtomicU64,
+}
+impl AtomicF64 {
+    pub fn new(value: f64) -> Self {
+        let as_u64 = value.to_bits();
+        Self {
+            storage: AtomicU64::new(as_u64),
+        }
+    }
+    pub fn store(&self, value: f64, ordering: Ordering) {
+        let as_u64 = value.to_bits();
+        self.storage.store(as_u64, ordering)
+    }
+    pub fn load(&self, ordering: Ordering) -> f64 {
+        let as_u64 = self.storage.load(ordering);
+        f64::from_bits(as_u64)
+    }
+}
+
+
+/// business logic
 #[derive(Debug, Deserialize)]
 struct MQTTEvent {
     mqtt_topic: String,
@@ -86,25 +124,23 @@ impl VehiclePosition {}
 #[derive(Debug, Serialize)]
 struct VehicleStatistics {
     vehicle: u16,
-    avg_speed: f64, // average speed of vehicle
+    avg_speed: AtomicF64,
 }
 
 impl Default for VehicleStatistics {
     fn default() -> Self {
         Self {
             vehicle: 22,
-            avg_speed: 3.2,
+            avg_speed: AtomicF64::new(3.2),
         }
     }
 }
 
-impl VehicleStatistics {
-    fn add(&mut self, _key: Key, value: VehicleStatistics) {
-        self.avg_speed = (self.avg_speed + value.avg_speed) / 2.0;
+impl WindowState for VehicleStatistics {
+    fn add<K, V>(&self, key: K, value: &V) {
+        // self.avg_speed = (self.avg_speed + value.avg_speed) / 2.0;
     }
 }
-
-impl WindowElement for VehicleStatistics {}
 
 static STATE: OnceLock<DefaultWindowState> = OnceLock::new();
 
@@ -126,10 +162,10 @@ pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordD
 
     // add to state
     let stats = STATE.get().unwrap();
-    stats.add(event.veh, &event);
+    stats.add(&event.veh, &event);
 
-    // get state
-    if let Some(state) = stats.get_state(event.veh) {
+    // get current value for compatibility with stream
+    if let Some(state) = stats.get_state(&event.veh) {
         let value_out = serde_json::to_string(&state)?;
         Ok(Some((Some(key.into()), RecordData::from(value_out))))
     } else {
@@ -143,21 +179,34 @@ pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordD
     */
 }
 
-// TODO: window API. this need to be called by 
-/* 
+// TODO: window API. this need to be called by
+/*
+  Acmmulated State (Table ), Result     
+  {
+    [
+        "veh": 116,
+        "avg_speed": 3.2
+    ],
+    [
+        "veh": 117,
+        "avg_speed": 3.2
+    ],
+    [
+        "veh": 118,
+        "avg_speed": 3.2
+    ]
+  }
 #[smartmodule(window(fetch))]
-pub fn window_fetch(time: Time) -> Result<Option<RecordData>> {
+// FetchFlag = { All, Range }
+pub fn window_fetch(time: Time, flag: FetchFlag) -> Resul<WindowStateSummary>> {
     //
 }
 
 #[smartmodule(window(slide))]
-pub fn window_slice(time: Time) -> Result<Option<RecordData>> {
+pub fn window_move(time: Time) -> Result<Option<RecordData>> {
     //
 }
 */
-
-
-
 
 #[cfg(test)]
 mod test {
