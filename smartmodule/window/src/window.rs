@@ -1,8 +1,7 @@
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::{marker::PhantomData, collections::HashMap};
-use std::hash::{Hash, Hasher};
+use std::hash::{Hash};
 
-use serde::{Deserialize, Serialize};
+pub use util::AtomicF64;
 
 #[derive(Debug, Default)]
 pub struct TumblingWindow<K, V, S> {
@@ -46,24 +45,77 @@ pub trait WindowState {
     fn add<K, V>(&self, key: K, value: &V);
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct AtomicF64 {
-    storage: AtomicU64,
-}
+mod util {
+    use std::{
+        sync::atomic::{AtomicU64, Ordering},
+        fmt,
+    };
 
-impl AtomicF64 {
-    pub fn new(value: f64) -> Self {
-        let as_u64 = value.to_bits();
-        Self {
-            storage: AtomicU64::new(as_u64),
+    use serde::{
+        Serialize, Deserialize, Serializer, Deserializer,
+        de::{Visitor, self},
+    };
+
+    #[derive(Debug, Default)]
+    pub struct AtomicF64 {
+        storage: AtomicU64,
+    }
+
+    impl Serialize for AtomicF64 {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            serializer.serialize_f64(self.load())
         }
     }
-    pub fn store(&self, value: f64, ordering: Ordering) {
-        let as_u64 = value.to_bits();
-        self.storage.store(as_u64, ordering)
+
+    struct AtomicF64Visitor;
+
+    impl<'de> Visitor<'de> for AtomicF64Visitor {
+        type Value = AtomicF64;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("an float between -2^31 and 2^31")
+        }
+
+        fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            use std::f64;
+            if value >= f64::from(f64::MIN) && value <= f64::from(f64::MAX) {
+                Ok(AtomicF64::new(value))
+            } else {
+                Err(E::custom(format!("f64 out of range: {}", value)))
+            }
+        }
     }
-    pub fn load(&self, ordering: Ordering) -> f64 {
-        let as_u64 = self.storage.load(ordering);
-        f64::from_bits(as_u64)
+
+    impl<'de> Deserialize<'de> for AtomicF64 {
+        fn deserialize<D>(deserializer: D) -> Result<AtomicF64, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            deserializer.deserialize_f64(AtomicF64Visitor)
+        }
+    }
+
+    impl AtomicF64 {
+        pub fn new(value: f64) -> Self {
+            let as_u64 = value.to_bits();
+            Self {
+                storage: AtomicU64::new(as_u64),
+            }
+        }
+
+        pub fn store(&self, value: f64) {
+            let as_u64 = value.to_bits();
+            self.storage.store(as_u64, Ordering::SeqCst)
+        }
+        pub fn load(&self) -> f64 {
+            let as_u64 = self.storage.load(Ordering::SeqCst);
+            f64::from_bits(as_u64)
+        }
     }
 }
