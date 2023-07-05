@@ -77,6 +77,10 @@ mod vehicle {
 
     impl WindowState<Key, VehiclePosition> for VehicleStatistics {
         fn add(&self, _key: &Key, value: &VehiclePosition) {
+            // rolling average
+            // M(n) = M(n-1) + (x - M(n-1)) / n
+            // https://math.stackexchange.com/questions/106700/incremental-averaging
+            let prev_value = self.avg_speed.load();
             self.avg_speed
                 .store((self.avg_speed.load() + value.spd as f64) / 2.0);
         }
@@ -114,6 +118,7 @@ mod vehicle {
         }
         */
 
+        
         // fake out data
         let stats = vec![
             VehicleStatistics {
