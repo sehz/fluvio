@@ -12,7 +12,7 @@ pub struct TumblingWindow<K, V, S> {
 
 impl<K, V, S> TumblingWindow<K, V, S>
 where
-    S: Default + WindowState,
+    S: Default + WindowState<K, V>,
     K: PartialEq + Eq + Hash,
 {
     pub fn new() -> Self {
@@ -26,7 +26,7 @@ where
     /// add new value to state
     pub fn add(&self, key: &K, value: &V) {
         if let Some(state) = self.store.get(&key) {
-            state.add(value, state);
+            state.add(key, value);
         } else {
             /*
             let mut state = S::default();
@@ -41,14 +41,15 @@ where
     }
 }
 
-pub trait WindowState {
-    fn add<K, V>(&self, key: K, value: &V);
+pub trait WindowState<K, V> {
+    fn add(&self, key: &K, value: &V);
 }
 
 mod util {
     use std::{
         sync::atomic::{AtomicU64, Ordering},
         fmt,
+        ops::{Deref, DerefMut},
     };
 
     use serde::{
@@ -59,6 +60,20 @@ mod util {
     #[derive(Debug, Default)]
     pub struct AtomicF64 {
         storage: AtomicU64,
+    }
+
+    impl Deref for AtomicF64 {
+        type Target = AtomicU64;
+
+        fn deref(&self) -> &Self::Target {
+            &self.storage
+        }
+    }
+
+    impl DerefMut for AtomicF64 {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.storage
+        }
     }
 
     impl Serialize for AtomicF64 {

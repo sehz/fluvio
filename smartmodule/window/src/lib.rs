@@ -75,9 +75,10 @@ mod vehicle {
         }
     }
 
-    impl WindowState for VehicleStatistics {
-        fn add<K, V>(&self, key: K, value: &V) {
-            // self.avg_speed = (self.avg_speed + value.avg_speed) / 2.0;
+    impl WindowState<Key, VehiclePosition> for VehicleStatistics {
+        fn add(&self, _key: &Key, value: &VehiclePosition) {
+            self.avg_speed
+                .store((self.avg_speed.load() + value.spd as f64) / 2.0);
         }
     }
 
