@@ -1,7 +1,8 @@
 use std::{marker::PhantomData, collections::HashMap};
 use std::hash::{Hash};
 
-pub use util::AtomicF64;
+//pub use util::{AtomicF64,RollingMean};
+pub use stats::RollingMean;
 
 #[derive(Debug, Default)]
 pub struct TumblingWindow<K, V, S> {
@@ -13,7 +14,7 @@ pub struct TumblingWindow<K, V, S> {
 impl<K, V, S> TumblingWindow<K, V, S>
 where
     S: Default + WindowState<K, V>,
-    K: PartialEq + Eq + Hash,
+    K: PartialEq + Eq + Hash + Clone,
 {
     pub fn new() -> Self {
         Self {
@@ -24,28 +25,34 @@ where
     }
 
     /// add new value to state
-    pub fn add(&self, key: &K, value: &V) {
-        if let Some(state) = self.store.get(&key) {
-            state.add(key, value);
+    pub fn add(&mut self, key: K, value: &V) {
+        if let Some(state) = self.store.get_mut(&key) {
+            state.add(&key, value);
         } else {
-            /*
-            let mut state = S::default();
-            state.add(key, value);
-            self.store.insert(_key, state);
-            */
+            self.store.insert(key.clone(), S::new_with_key(key.clone()));
+            if let Some(state) = self.store.get_mut(&key) {
+                state.add(&key, value);
+            }
         }
     }
 
-    fn get_state(&self, key: &K) -> Option<&S> {
+    pub fn get_state(&self, key: &K) -> Option<&S> {
         self.store.get(key)
+    }
+
+    pub fn summary(&self) -> Vec<&S> {
+        self.store.values().collect()
     }
 }
 
 pub trait WindowState<K, V> {
-    fn add(&self, key: &K, value: &V);
+    fn new_with_key(key: K) -> Self;
+
+    fn add(&mut self, key: &K, value: &V);
 }
 
-mod util {
+// lock free stats
+mod stats_lock_free {
     use std::{
         sync::atomic::{AtomicU64, Ordering, AtomicU32},
         fmt,
@@ -74,7 +81,6 @@ mod util {
         }
     }
 
-    
     impl Serialize for AtomicF64 {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
@@ -114,7 +120,6 @@ mod util {
             deserializer.deserialize_f64(AtomicF64Visitor)
         }
     }
-    
 
     impl AtomicF64 {
         pub fn new(value: f64) -> Self {
@@ -131,26 +136,23 @@ mod util {
             let as_u64 = self.0.load(Ordering::SeqCst);
             f64::from_bits(as_u64)
         }
-
     }
 
-    #[derive(Debug, Default,Serialize)]
+    #[derive(Debug, Default, Serialize)]
     pub struct RollingMean {
         #[serde(skip)]
         count: AtomicU32,
-        mean: AtomicF64
+        mean: AtomicF64,
     }
 
     impl RollingMean {
-
-
         /// add to sample
         pub fn add(&self, value: f64) {
             let prev_mean = self.mean.load();
             let new_count = self.count.load(Ordering::SeqCst) + 1;
             let new_mean = prev_mean + (value - prev_mean) / (new_count as f64);
             self.mean.store(new_mean);
-            self.count.store(new_count,Ordering::SeqCst);
+            self.count.store(new_count, Ordering::SeqCst);
         }
 
         pub fn mean(&self) -> f64 {
@@ -186,6 +188,55 @@ mod util {
         #[test]
         fn rolling_mean() {
             let rm: RollingMean = RollingMean::default();
+            rm.add(3.2);
+            assert_eq!(rm.mean(), 3.2);
+            rm.add(4.2);
+            assert_eq!(rm.mean(), 3.7);
+        }
+    }
+}
+
+mod stats {
+    use std::{
+        sync::atomic::{AtomicU64, Ordering, AtomicU32},
+        fmt,
+        ops::{Deref, DerefMut},
+    };
+
+    use serde::{
+        Serialize, Deserialize, Serializer, Deserializer,
+        de::{Visitor, self},
+    };
+
+    #[derive(Debug, Default, Serialize)]
+    pub struct RollingMean {
+        #[serde(skip)]
+        count: u32,
+        mean: f64,
+    }
+
+    impl RollingMean {
+        /// add to sample
+        pub fn add(&mut self, value: f64) {
+            let prev_mean = self.mean;
+            let new_count = self.count + 1;
+            let new_mean = prev_mean + (value - prev_mean) / (new_count as f64);
+            self.mean = new_mean;
+            self.count = new_count;
+        }
+
+        pub fn mean(&self) -> f64 {
+            self.mean
+        }
+    }
+
+    mod test {
+
+        use super::*;
+
+        #[test]
+        fn rolling_mean() {
+            let mut rm: RollingMean = RollingMean::default();
             rm.add(3.2);
             assert_eq!(rm.mean(), 3.2);
             rm.add(4.2);

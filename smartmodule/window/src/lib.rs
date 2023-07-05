@@ -3,6 +3,7 @@ mod window;
 mod vehicle {
 
     use std::{sync::OnceLock};
+    use std::sync::Mutex;
 
     use serde::{Deserialize, Serialize};
 
@@ -63,35 +64,37 @@ mod vehicle {
     #[derive(Debug, Serialize)]
     struct VehicleStatistics {
         vehicle: u16,
-        avg_speed: AtomicF64,
+        avg_speed: RollingMean,
     }
 
     impl Default for VehicleStatistics {
         fn default() -> Self {
             Self {
                 vehicle: 22,
-                avg_speed: AtomicF64::new(3.2),
+                avg_speed: RollingMean::default(),
             }
         }
     }
 
     impl WindowState<Key, VehiclePosition> for VehicleStatistics {
-        fn add(&self, _key: &Key, value: &VehiclePosition) {
-            // rolling average
-            // M(n) = M(n-1) + (x - M(n-1)) / n
-            // https://math.stackexchange.com/questions/106700/incremental-averaging
-            let prev_value = self.avg_speed.load();
-            self.avg_speed
-                .store((self.avg_speed.load() + value.spd as f64) / 2.0);
+        fn add(&mut self, _key: &Key, value: &VehiclePosition) {
+            self.avg_speed.add(value.spd as f64);
+        }
+
+        fn new_with_key(key: Key) -> Self {
+            Self {
+                vehicle: key,
+                avg_speed: RollingMean::default(),
+            }
         }
     }
 
-    static STATE: OnceLock<DefaultWindowState> = OnceLock::new();
+    static STATE: OnceLock<Mutex<DefaultWindowState>> = OnceLock::new();
 
     #[smartmodule(init)]
     fn init(_params: SmartModuleExtraParams) -> Result<()> {
         STATE
-            .set(TumblingWindow::new())
+            .set(Mutex::new(TumblingWindow::new()))
             .map_err(|err| eyre!("state init: {:#?}", err))
     }
 
@@ -105,8 +108,8 @@ mod vehicle {
         let key = event.veh.to_string();
 
         // add to state
-        let stats = STATE.get().unwrap();
-        stats.add(&event.veh, &event);
+        let mut stats = STATE.get().unwrap().lock().unwrap();
+        stats.add(event.veh, &event);
 
         /*
         // get current value for compatibility with stream
@@ -118,8 +121,8 @@ mod vehicle {
         }
         */
 
-        
         // fake out data
+        /*
         let stats = vec![
             VehicleStatistics {
                 vehicle: 116,
@@ -134,10 +137,13 @@ mod vehicle {
                 avg_speed: AtomicF64::new(9.2),
             },
         ];
+        */
+
+        let summary: Vec<&VehicleStatistics> = stats.summary();
 
         Ok(Some((
             None,
-            RecordData::from(serde_json::to_string(&stats)?),
+            RecordData::from(serde_json::to_string(&summary)?),
         )))
 
         /*
