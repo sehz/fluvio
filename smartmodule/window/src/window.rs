@@ -118,4 +118,30 @@ mod util {
             f64::from_bits(as_u64)
         }
     }
+
+    mod test {
+
+        use super::*;
+
+        #[derive(Serialize, Deserialize)]
+        struct Sample {
+            speed: AtomicF64,
+        }
+
+        #[test]
+        fn test_f64_serialize() {
+            let test = Sample {
+                speed: AtomicF64::new(3.2),
+            };
+            let json = serde_json::to_string(&test).expect("serialize");
+            assert_eq!(json, r#"{"speed":3.2}"#);
+        }
+
+        #[test]
+        fn test_f64_de_serialize() {
+            let input_str = r#"{"speed":9.13}"#;
+            let test: Sample = serde_json::from_str(input_str).expect("serialize");
+            assert_eq!(test.speed.load(), 9.13);
+        }
+    }
 }
