@@ -144,12 +144,7 @@ pub struct SmartModuleInitInput {
     pub params: SmartModuleExtraParams,
 }
 
-
-pub struct SmartModuleWindow {
-
-}
-
-
+pub struct SmartModuleWindow {}
 
 #[cfg(test)]
 mod tests {

@@ -6,6 +6,7 @@ mod vehicle {
     use std::sync::Mutex;
 
     use serde::{Deserialize, Serialize};
+    use chrono::{DateTime, Utc};
 
     use super::window::*;
 
@@ -35,15 +36,15 @@ mod vehicle {
     ///
     #[derive(Debug, Deserialize)]
     struct VehiclePosition {
-        desi: String,  // Route number visible to passengers.
-        lat: f32,      // WGS 84 latitude in degrees. null if location is unavailable.
-        long: f32,     // WGS 84 longitude in degrees.null if location is unavailable.
+        desi: String,       // Route number visible to passengers.
+        lat: f32,           // WGS 84 latitude in degrees. null if location is unavailable.
+        long: f32,          // WGS 84 longitude in degrees.null if location is unavailable.
         dir: String, // Route direction of the trip. After type conversion matches direction_id in GTFS and the topic. Either "1" or "2".
         oper: u16, // Unique ID of the operator running the trip (i.e. this value can be different than the operator ID in the topic, for example if the service has been subcontracted to another operator). The unique ID does not have prefix zeroes here.
         veh: Key, // Vehicle number that can be seen painted on the side of the vehicle, often next to the front door. Different operators may use overlapping vehicle numbers. Matches vehicle_number in the topic except without the prefix zeroes.
-        tst: String, // UTC timestamp with millisecond precision from the vehicle in ISO 8601 format (yyyy-MM-dd'T'HH:mm:ss.SSSZ).
-        tsi: u64,    // Unix time in seconds from the vehicle.
-        spd: f32,    // Speed of the vehicle, in meters per second (m/s).
+        tst: DateTime<Utc>, // UTC timestamp with millisecond precision from the vehicle in ISO 8601 format (yyyy-MM-dd'T'HH:mm:ss.SSSZ).
+        tsi: u64,           // Unix time in seconds from the vehicle.
+        spd: f32,           // Speed of the vehicle, in meters per second (m/s).
         hdg: u16, // Heading of the vehicle, in degrees (⁰) starting clockwise from geographic north. Valid values are on the closed interval [0, 360].
         acc: f32, // Acceleration (m/s^2), calculated from the speed on this and the previous message. Negative values indicate that the speed of the vehicle is decreasing.
         dl: u16, // Offset from the scheduled timetable in seconds (s). Negative values indicate lagging behind the schedule, positive values running ahead of schedule.
@@ -186,7 +187,11 @@ mod vehicle {
     mod test {
         use std::fs;
 
+        use chrono::{DateTime, Utc, FixedOffset};
+
         use super::MQTTEvent;
+
+        type UTCTime = DateTime<Utc>;
 
         #[test]
         fn json_parse() {
@@ -196,6 +201,11 @@ mod vehicle {
             assert_eq!(event.veh, 116);
             assert_eq!(event.lat, 60.178622);
             assert_eq!(event.long, 24.950366);
+            assert_eq!(
+                event.tst,
+                DateTime::<FixedOffset>::parse_from_str("2023-06-22T19:45:22.081Z", "%+")
+                    .expect("datetime parser error")
+            );
         }
     }
 }
