@@ -144,6 +144,13 @@ pub struct SmartModuleInitInput {
     pub params: SmartModuleExtraParams,
 }
 
+
+pub struct SmartModuleWindow {
+
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

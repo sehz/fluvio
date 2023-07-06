@@ -8352,6 +8352,7 @@ dependencies = [
 name = "window-example"
 version = "0.0.0"
 dependencies = [
+ "chrono",
  "fluvio-smartmodule",
  "serde",
  "serde_json",
