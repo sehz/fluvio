@@ -9,5 +9,5 @@ publish = false
 crate-type = ['cdylib']
 
 [dependencies]
-regex = "1"
+regex = { workspace = true }
 fluvio-smartmodule = { workspace = true }

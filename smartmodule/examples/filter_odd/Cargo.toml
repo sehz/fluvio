@@ -9,5 +9,5 @@ publish = false
 crate-type = ['cdylib']
 
 [dependencies]
-thiserror = "1"
+thiserror = { workspace = true }
 fluvio-smartmodule = { workspace = true }
