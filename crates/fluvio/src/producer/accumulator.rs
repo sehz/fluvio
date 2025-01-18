@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_channel::Sender;
 use async_lock::RwLock;
@@ -99,6 +99,7 @@ impl RecordAccumulator {
         &self,
         record: Record,
         partition_id: PartitionId,
+        start: Instant,
     ) -> Result<PushRecord, ProducerError> {
         let batches_lock = self.batches.read().await;
         let (batch_events, batches_lock) = batches_lock
@@ -116,7 +117,7 @@ impl RecordAccumulator {
                         batch_events.notify_batch_full().await;
                     }
                     return Ok(PushRecord::new(
-                        push_record.into_future_record_metadata(partition_id),
+                        push_record.into_future_record_metadata(partition_id, start),
                     ));
                 }
                 Ok(ProduceBatchStatus::NotAdded(record)) => {
@@ -130,7 +131,7 @@ impl RecordAccumulator {
                         .await?;
 
                     return Ok(PushRecord::new(
-                        push_record.into_future_record_metadata(partition_id),
+                        push_record.into_future_record_metadata(partition_id, start),
                     ));
                 }
                 Err(err) => {
@@ -147,7 +148,7 @@ impl RecordAccumulator {
             .await?;
 
         Ok(PushRecord::new(
-            push_record.into_future_record_metadata(partition_id),
+            push_record.into_future_record_metadata(partition_id, start),
         ))
     }
 
@@ -514,7 +515,7 @@ mod test {
             .clone();
 
         accumulator
-            .push_record(record.clone(), 0)
+            .push_record(record.clone(), 0, Instant::now())
             .await
             .expect("failed push");
         assert!(
@@ -529,7 +530,7 @@ mod test {
                 .is_err()
         );
         accumulator
-            .push_record(record.clone(), 0)
+            .push_record(record.clone(), 0, Instant::now())
             .await
             .expect("failed push");
 
@@ -539,7 +540,7 @@ mod test {
                 .is_err()
         );
         accumulator
-            .push_record(record, 0)
+            .push_record(record, 0, Instant::now())
             .await
             .expect("failed push");
 
@@ -556,7 +557,7 @@ mod test {
             .add_partition(1, (batch_events.clone(), batches_deque.clone()))
             .await;
         accumulator
-            .push_record(record_2.clone(), 1)
+            .push_record(record_2.clone(), 1, Instant::now())
             .await
             .expect("failed push");
 

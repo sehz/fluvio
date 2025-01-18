@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use async_channel::Receiver;
 use async_lock::RwLock;
@@ -13,12 +14,15 @@ use crate::producer::accumulator::ProducePartitionResponseFuture;
 use super::error::ProducerError;
 
 /// Metadata of a record send to a topic
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct RecordMetadata {
     /// The partition the record was sent to
     pub(crate) partition_id: PartitionId,
     /// The offset of the record in the topic/partition.
     pub(crate) offset: Offset,
+
+    pub(crate) start: std::time::Instant,
+    pub(crate) end: std::time::Instant,
 }
 
 impl RecordMetadata {
@@ -30,6 +34,14 @@ impl RecordMetadata {
     /// Partition index the record was sent to
     pub fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    pub fn start(&self) -> Instant {
+        self.start
+    }
+
+    pub fn end(&self) -> Instant {
+        self.end
     }
 }
 
@@ -56,7 +68,7 @@ impl BatchMetadata {
 
     /// Wait for the base offset of the batch. This is the offset of the first
     /// record in the batch and it is known once the batch is sent to the server.
-    pub(crate) async fn base_offset(&self) -> Result<Offset> {
+    pub(crate) async fn wait_for_ack(&self) -> Result<Offset> {
         let mut state = self.state.write().await;
         match &*state {
             BatchMetadataState::Buffered(receiver) => {
@@ -108,11 +120,13 @@ impl PartialFutureRecordMetadata {
     pub(crate) fn into_future_record_metadata(
         self,
         partition_id: PartitionId,
+        start: std::time::Instant,
     ) -> FutureRecordMetadata {
         FutureRecordMetadata {
             partition_id,
             relative_offset: self.relative_offset,
             batch_metadata: self.batch_metadata,
+            start,
         }
     }
 }
@@ -125,6 +139,9 @@ pub struct FutureRecordMetadata {
     pub(crate) partition_id: PartitionId,
     /// The offset of the record in the topic/partition.
     pub(crate) relative_offset: Offset,
+
+    pub(crate) start: std::time::Instant,
+
     /// Handler to get base offset of the batch
     pub(crate) batch_metadata: Arc<BatchMetadata>,
 }
@@ -132,9 +149,11 @@ pub struct FutureRecordMetadata {
 impl FutureRecordMetadata {
     /// wait for the record metadata to be available
     pub async fn wait(self) -> Result<RecordMetadata> {
-        let base_offset = self.batch_metadata.base_offset().await?;
+        let base_offset = self.batch_metadata.wait_for_ack().await?;
         Ok(RecordMetadata {
             partition_id: self.partition_id,
+            start: self.start,
+            end: Instant::now(),
             offset: base_offset + self.relative_offset,
         })
     }

@@ -8,6 +8,7 @@
 //!
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use tracing::instrument;
 use async_lock::RwLock;
@@ -241,7 +242,7 @@ where
         Ok(())
     }
 
-    async fn push_record(self: Arc<Self>, record: Record) -> Result<PushRecord> {
+    async fn push_record(self: Arc<Self>, record: Record, start: Instant) -> Result<PushRecord> {
         let topics = self.spu_pool.topics();
 
         let topic_spec = topics
@@ -284,7 +285,7 @@ where
 
         let push_record = self
             .record_accumulator
-            .push_record(record, partition)
+            .push_record(record, partition, start)
             .await?;
 
         Ok(push_record)
@@ -536,7 +537,8 @@ where
 
         let mut results = ProduceOutput::default();
         for record in entries {
-            let push_record = self.inner.clone().push_record(record).await?;
+            let start = Instant::now();
+            let push_record = self.inner.clone().push_record(record, start).await?;
             results.add(push_record.future);
         }
         Ok(results)
