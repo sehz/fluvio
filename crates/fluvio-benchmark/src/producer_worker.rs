@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use anyhow::Result;
 
 use fluvio::{
@@ -60,15 +62,13 @@ impl ProducerWorker {
         println!("producer is sending batch");
 
         for record in self.records_to_send.into_iter() {
-            self.stat.start();
-            let time = std::time::Instant::now();
+            let start = Instant::now();
             let send_out = self
                 .fluvio_producer
                 .send(record.key, record.data.clone())
                 .await?;
 
-            self.stat.send_out((send_out, time));
-            self.stat.add_record(record.data.len() as u64).await;
+            self.stat.add_record(start,record.data.len() as u64,send_out).await?;
         }
         self.fluvio_producer.flush().await?;
         self.stat.finish();
