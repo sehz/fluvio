@@ -10,9 +10,9 @@ use hdrhistogram::Histogram;
 pub(crate) struct ProducerStat {
     record_send: u64,
     record_bytes: u64,
-    elapsed: u64,
-    min_latency: u64,
-    max_latency: u64,
+    elapsed: u128,
+    min_latency: u128,
+    max_latency: u128,
 
 
     //output_tx: Sender<(ProduceOutput, Instant)>,
@@ -111,8 +111,6 @@ pub(crate) struct StatCollector {
     accumulator: ProducerStat,
     batch_size: u64,     // number of records before we calculate stats
     current_record: u64, // how many records we have sent in current cycle
-    min_latency: u64,
-    max_latency: u64,
     sender: Sender<Stat>,
 }
 
@@ -127,9 +125,7 @@ impl StatCollector {
             accumulator: ProducerStat::new(num_records, latency_sender),
             batch_size,
             current_record: 0,
-            sender,
-            min_latency: 0,
-            max_latency: 0,
+            sender
         }
     }
 
@@ -147,13 +143,13 @@ impl StatCollector {
         // wait for record to be sent
         send_out.wait().await?;
 
-        let elapsed = start.elapsed().as_micros();
-        self.accumulator.elapsed += elapsed as u64;
-        self.accumulator.max_latency = self.accumulator.max_latency.max(elapsed as u64);
-        if self.min_latency == 0 {
-            self.min_latency = elapsed as u64;
+        let elapsed = start.elapsed().as_nanos();
+        self.accumulator.elapsed += elapsed;
+        self.accumulator.max_latency = self.accumulator.max_latency.max(elapsed);
+        if self.accumulator.min_latency == 0 {
+            self.accumulator.min_latency = elapsed;
         } else {
-            self.min_latency = self.min_latency.min(elapsed as u64);
+            self.accumulator.min_latency = self.accumulator.min_latency.min(elapsed);
         } 
 
         Ok(())
@@ -164,16 +160,21 @@ impl StatCollector {
 
         println!("finish");
 
-        let records_per_sec = ((self.accumulator.record_send as f64 / self.accumulator.elapsed as f64) * 1_000_000.0).round();
-        let bytes_per_sec = (self.accumulator.record_bytes as f64 / self.accumulator.elapsed as f64) * 1_000_000.0;
+        let elapsed = self.accumulator.elapsed as f64;
+        println!("elapsed: {} seconds",elapsed * 1e-9);
+        println!("max latency: {} ms",self.accumulator.max_latency as f64 * 1e-6);
+        println!("min latency: {} ms",self.accumulator.min_latency as f64 * 1e-6);
+        let scale_factor = 1_000_000_000.0;
+        let records_per_sec = ((self.accumulator.record_send as f64 / elapsed) * scale_factor).round();
+        let bytes_per_sec = (self.accumulator.record_bytes as f64 / elapsed) * scale_factor;
         let end_record = Stat {
             records_per_sec,
             bytes_per_sec,
             total_bytes_send: self.accumulator.record_bytes,
             total_records_send: self.accumulator.record_send,
             latency_avg: 0,
-            latency_max: self.accumulator.max_latency,
-            latency_min: self.accumulator.min_latency,
+            latency_max: (self.accumulator.max_latency * 1000000) as u64,
+            latency_min: (self.accumulator.min_latency * 1000000) as u64,
             _end: true,
         };
 
