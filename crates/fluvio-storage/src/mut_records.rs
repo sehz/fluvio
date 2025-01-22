@@ -10,6 +10,7 @@ use std::time::Instant;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
+use tracing::info;
 use tracing::instrument;
 use tracing::{debug, trace};
 use futures_lite::io::AsyncWriteExt;
@@ -147,16 +148,20 @@ impl MutFileRecords {
             batch.encode(&mut buffer, 0)?;
             assert_eq!(buffer.len(), batch_len);
 
-            let raw_fd = self.file.as_raw_fd();
-            let mut std_file = unsafe { std::fs::File::from_raw_fd(raw_fd) };
-            std_file.write_all(&buffer)?;
-            std::mem::forget(std_file);
+           // let raw_fd = self.file.as_raw_fd();
+           // let t1 = Instant::now();
+           // let mut std_file = unsafe { std::fs::File::from_raw_fd(raw_fd) };
+           // std_file.write_all(&buffer)?;
+            //std::mem::forget(std_file);
+            
+          //  let elapsed = t1.elapsed().as_micros();
+           // info!(elapsed,buffer = buffer.len(),"write elapsed ms");
 
             self.len += batch_len as u32;
             debug!(pos = self.get_pos(), "update pos",);
             self.write_count = self.write_count.saturating_add(1);
 
-            self.flush().await?;
+           // self.flush().await?;
             debug!(
                 flush_count = self.flush_count(),
                 write_count = self.write_count,

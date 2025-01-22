@@ -169,8 +169,8 @@ impl LazyWriter {
                     } else {
                         debug!(offset, "writing checkpoint");
                         let buf = offset.to_be_bytes();
-                        self.file.seek(SeekFrom::Start(0)).await?;
-                        self.file.write_all(&buf).await?;
+                      //  self.file.seek(SeekFrom::Start(0)).await?;
+                      //  self.file.write_all(&buf).await?;
                     }
                 }
             }

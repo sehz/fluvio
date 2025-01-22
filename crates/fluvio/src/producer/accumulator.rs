@@ -106,7 +106,9 @@ impl RecordAccumulator {
             .ok_or(ProducerError::PartitionNotFound(partition_id))?;
 
         // Wait for space in the batch queue
+       // let time = Instant::now();
         let mut batches = self.wait_for_space(batches_lock).await?;
+       // println!("wait took: {}",time.elapsed().as_millis());
 
         // If the last batch is not full, push the record to it
         if let Some(batch) = batches.back_mut() {

@@ -26,6 +26,7 @@ serde = { workspace = true , features = ['derive'] }
 serde_yaml = { workspace = true }
 thiserror = { workspace = true }
 tracing = {workspace = true }
+mimalloc = { workspace = true }
 
 fluvio = { workspace = true  }
 fluvio-future = { workspace = true, features = [

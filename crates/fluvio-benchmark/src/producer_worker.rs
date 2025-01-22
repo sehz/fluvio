@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use async_channel::Sender;
+use bytesize::ByteSize;
 use fluvio::{
     dataplane::record::RecordData, DeliverySemantic, Fluvio, Isolation,
     ProduceCompletionBatchEvent, ProducerCallback, SharedProducerCallback, RecordKey,
@@ -41,6 +42,8 @@ impl ProducerCallback for BenchmarkProducerCallback {
 pub(crate) struct ProducerWorker {
     fluvio_producer: TopicProducerPool,
     records_to_send: Vec<BenchmarkRecord>,
+    num_records: u64,
+    record_size: u64,
 }
 impl ProducerWorker {
     pub(crate) async fn new(
@@ -52,8 +55,11 @@ impl ProducerWorker {
         let callback: SharedProducerCallback =
             Arc::new(BenchmarkProducerCallback::new(event_sender));
 
+
+        println!("{:#?}",config);
+
         let fluvio_config = TopicProducerConfigBuilder::default()
-            .callback(callback)
+    //        .callback(callback)
             .batch_size(config.batch_size.as_u64() as usize)
             .batch_queue_size(config.queue_size as usize)
             .max_request_size(config.max_request_size.as_u64() as usize)
@@ -61,12 +67,16 @@ impl ProducerWorker {
             .compression(config.compression)
             .timeout(config.server_timeout)
             .isolation(Isolation::ReadUncommitted)
-            .delivery_semantic(DeliverySemantic::default())
+           // .delivery_semantic(DeliverySemantic::default())
+            .delivery_semantic(DeliverySemantic::AtMostOnce)
             .build()?;
 
         let fluvio_producer = fluvio
             .topic_producer_with_config(config.topic_name.clone(), fluvio_config)
             .await?;
+
+        let record_size = config.record_size.as_u64();
+
 
         let num_records = records_per_producer(id, config.num_producers, config.num_records);
 
@@ -75,18 +85,35 @@ impl ProducerWorker {
         Ok(ProducerWorker {
             fluvio_producer,
             records_to_send,
+            num_records,
+            record_size,
         })
     }
 
     pub async fn send_batch(self) -> Result<()> {
         println!("producer is sending batch");
 
+        let start = std::time::Instant::now();
         for record in self.records_to_send.into_iter() {
             let _ = self
                 .fluvio_producer
                 .send(record.key, record.data.clone())
                 .await?;
         }
+
+        let elapse = start.elapsed().as_millis();
+        println!("producer finished sending batch, elapsed: {} ms", elapse);
+        let records_per_sec = ((self.num_records as f64 / elapse as f64) * 1000.0).round();
+        let bytes_per_sec = ((self.num_records * self.record_size) as f64 / elapse as f64) * 1000.0;
+
+        let human_readable_bytes = ByteSize(bytes_per_sec as u64).to_string();
+
+        println!(
+            "{} records sent, {} records/sec: ({}/sec) ",
+             self.num_records, records_per_sec, human_readable_bytes
+        );
+
+
         self.fluvio_producer.flush().await?;
 
         Ok(())

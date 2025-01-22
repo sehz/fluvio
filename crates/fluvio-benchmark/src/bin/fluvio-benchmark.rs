@@ -1,3 +1,6 @@
+//#[global_allocator]
+//static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use anyhow::Result;
 use clap::Parser;
 use fluvio_benchmark::cli::{BenchmarkOpt, run_benchmarks};
