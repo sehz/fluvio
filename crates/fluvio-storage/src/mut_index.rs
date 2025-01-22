@@ -5,11 +5,19 @@ use std::ops::DerefMut;
 use std::slice;
 use std::sync::Arc;
 
-use libc::c_void;
+use anyhow::Result;
+use tokio::select;
 use tracing::debug;
+use tracing::info;
 use tracing::instrument;
 use tracing::trace;
 use tracing::error;
+
+use fluvio_types::event::offsets::OffsetChangeListener;
+use fluvio_types::event::offsets::OffsetPublisher;
+use fluvio_types::event::StickyEvent;
+use libc::c_void;
+
 
 use fluvio_future::fs::File;
 use fluvio_future::fs::mmap::MemoryMappedMutFile;
@@ -35,6 +43,7 @@ pub struct MutLogIndex {
     option: Arc<SharedReplicaConfig>,
     max_index_interval: Size,
     ptr: *mut c_void,
+    offset: Arc<OffsetPublisher>,
 }
 
 // const MEM_SIZE: u64 = 1024 * 1024 * 10; //10 MBs
@@ -73,6 +82,9 @@ impl MutLogIndex {
             let b_slices: &[u8] = &m_file.mut_inner();
             b_slices.as_ptr() as *mut libc::c_void
         };
+        let offset = OffsetPublisher::shared(0);
+
+       // let mut lazy_writer = LazyWriter::new(m_file.clone());
 
         Ok(MutLogIndex {
             max_index_interval,
@@ -84,6 +96,8 @@ impl MutLogIndex {
             option,
             ptr,
             base_offset,
+            offset
+
         })
     }
 
@@ -110,7 +124,8 @@ impl MutLogIndex {
         };
 
         let max_index_interval = option.index_max_interval_bytes.get_consistent();
-
+        let offset = OffsetPublisher::shared(0);
+       // let mut lazy_writer = LazyWriter::new(m_file.clone());
         let mut index = MutLogIndex {
             mmap: m_file,
             max_index_interval,
@@ -121,6 +136,7 @@ impl MutLogIndex {
             option,
             ptr,
             base_offset,
+            offset
         };
 
         index.first_empty_slot = index.find_first_empty_index()?;
@@ -213,7 +229,8 @@ impl MutLogIndex {
             let slot_index = self.first_empty_slot as usize;
             debug!(slot_index, offset_delta, file_position, "add new entry at");
             self[slot_index] = (offset_delta.to_be(), file_position.to_be());
-            self.mmap.flush_ft().await?;
+           // self.offset.update_increment();
+            self.mmap.flush_range_ft(slot_index, std::mem::size_of::<usize>()).await?;
             self.accumulated_batch_len = 0;
             self.first_empty_slot += 1;
         } else {
@@ -282,6 +299,69 @@ impl DerefMut for MutLogIndex {
         }
     }
 }
+
+
+
+
+/// write in lazy
+struct LazyWriter {
+    file: MemoryMappedMutFile,
+    offset: Offset,
+}
+
+impl LazyWriter {
+    fn new(file: MemoryMappedMutFile) -> Self {
+        Self { file, offset: 0 }
+    }
+
+    fn spawn_writer(self, listener: OffsetChangeListener) -> Arc<StickyEvent> {
+        let flush_event = StickyEvent::shared();
+        let loop_flush = flush_event.clone();
+        fluvio_future::task::spawn(async move {
+            if let Err(err) = self.write_loop(listener, loop_flush).await {
+                error!("error writing checkpoint: {}", err);
+            }
+        });
+        flush_event
+    }
+
+    async fn write_loop(
+        mut self,
+        mut listener: OffsetChangeListener,
+        flush: Arc<StickyEvent>,
+    ) -> Result<()> {
+        info!("starting checkpoint writer loop");
+        loop {
+            select! {
+                _ = flush.listen() => {
+                    info!("flushing checkpoint");
+                    self.flush().await?;
+                    break;
+                },
+                offset = listener.listen() => {
+                    if offset == self.offset {
+                        debug!(offset, "no change in offset, skipping");
+                    } else {
+                        debug!(offset, "writing checkpoint");
+                        self.file.flush_async_ft().await?;
+                    }
+                }
+            }
+        }
+
+        info!("lazy writer loop done");
+        Ok(())
+    }
+
+
+    async fn flush(&mut self) -> Result<(), IoError> {
+        info!("lazywriter flushing checkpoint");
+        self.file.flush_ft().await?;
+        Ok(())
+    }
+}
+
+
 
 #[cfg(test)]
 #[cfg(feature = "fixture")]
