@@ -41,16 +41,16 @@ record = [
 ]
 types = ["fluvio-types"]
 link = ["api","record","thiserror","flv-util","semver","eyre"]
-fixture = ["record","derive_builder"]
+fixture = ["record","bon"]
 compress = ["fluvio-compression/compress"]
 
 [dependencies]
+bon = { workspace = true,  optional = true }
 bytes = { workspace = true  }
 cfg-if = { workspace = true }
 crc32c = { workspace = true,  optional = true }
 content_inspector = { optional = true, workspace = true }
 once_cell = { workspace = true, optional = true }
-derive_builder = { workspace = true,  optional = true }
 eyre = { workspace = true,  optional = true }
 semver = { workspace = true, optional = true }
 thiserror = { workspace = true,  optional = true }

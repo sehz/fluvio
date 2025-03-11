@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{Error, anyhow, Result};
-use derive_builder::Builder;
+use bon::Builder;
 
 /// Error returned from `CargoBuild` builder when both the `target` field and
 /// an extra argument with `--target` are both present.
@@ -41,24 +41,21 @@ impl Display for Profile {
 
 /// Builder Argument
 #[derive(Builder, Debug, Default)]
-#[builder(setter(into))]
-#[builder(build_fn(validate = "Self::validate"))]
+//#[builder(build_fn(validate = "Self::validate"))]
 pub struct Cargo {
     /// Basic cargo command
     pub cmd: CargoCommand,
 
     /// --profile
-    #[builder(setter(into), default = "Profile::default().to_string()")]
+    #[builder(into, default = Profile::default() )]
     pub profile: String,
     /// --lib
-    #[builder(default = "true")]
+    #[builder(default = true)]
     pub lib: bool,
     /// The location at which to find the chart to install
     /// --package
-    #[builder(setter(strip_option), default)]
     pub package: Option<String>,
     /// --target
-    #[builder(setter(strip_option), default)]
     pub target: Option<String>,
     #[builder(default)]
     pub extra_arguments: Vec<String>,

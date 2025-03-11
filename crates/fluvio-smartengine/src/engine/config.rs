@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use derive_builder::Builder;
+use bon::Builder;
 
 use fluvio_protocol::Version;
 use fluvio_smartmodule::SMARTMODULE_TIMESTAMPS_VERSION;
@@ -31,14 +31,12 @@ impl Default for SmartModuleInitialData {
 /// SmartModule configuration
 #[derive(Builder)]
 pub struct SmartModuleConfig {
-    #[builder(default, setter(strip_option))]
+    #[builder(default)]
     pub(crate) initial_data: SmartModuleInitialData,
     #[builder(default)]
     pub(crate) params: SmartModuleExtraParams,
     // this will be deprecated in the future
-    #[builder(default, setter(into, strip_option))]
     pub(crate) version: Option<i16>,
-    #[builder(default)]
     pub(crate) lookback: Option<Lookback>,
 }
 
@@ -61,7 +59,7 @@ impl SmartModuleConfigBuilder {
 
 impl SmartModuleConfig {
     pub fn builder() -> SmartModuleConfigBuilder {
-        SmartModuleConfigBuilder::default()
+        SmartModuleConfig::builder()
     }
 
     pub(crate) fn version(&self) -> i16 {

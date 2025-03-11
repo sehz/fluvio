@@ -30,8 +30,8 @@ async-channel = { workspace = true }
 async-lock = { workspace = true }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
+bon = { workspace = true }
 cfg-if = { workspace = true }
-derive_builder = { workspace = true }
 event-listener = { workspace = true }
 futures-util = { workspace = true }
 once_cell = { workspace = true }

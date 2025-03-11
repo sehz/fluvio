@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use educe::Educe;
-use derive_builder::Builder;
+use bon::Builder;
 
 use fluvio_protocol::record::RawRecords;
 use fluvio_protocol::{Encoder, Decoder};
@@ -58,36 +58,30 @@ pub const OFFSET_MANAGEMENT_API: i16 = 23;
 /// Output will be send back as stream
 #[allow(deprecated)]
 #[derive(Decoder, Encoder, Builder, Default, Educe)]
-#[builder(setter(into))]
 #[educe(Debug)]
 pub struct StreamFetchRequest<R> {
     pub topic: String,
-    #[builder(default = "0")]
+    #[builder(into,default = 0)]
     pub partition: PartitionId,
-    #[builder(default = "0")]
+    #[builder(into,default = 0)]
     pub fetch_offset: i64,
-    #[builder(default = "FLUVIO_CLIENT_MAX_FETCH_BYTES")]
+    #[builder(into, default = FLUVIO_CLIENT_MAX_FETCH_BYTES)]
     pub max_bytes: i32,
-    #[builder(default = "Isolation::ReadUncommitted")]
+    #[builder(into, default = Isolation::ReadUncommitted)]
     pub isolation: Isolation,
-    // these private fields will be removed
-    #[educe(Debug(ignore))]
-    #[builder(setter(skip))]
+    #[builder(default)]
     #[fluvio(min_version = 11, max_version = 18)]
     wasm_module: Vec<u8>,
-    #[builder(setter(skip))]
     #[fluvio(min_version = 16, max_version = 18)]
     smartmodule: Option<SmartModuleInvocation>,
-    #[builder(setter(skip))]
     #[fluvio(min_version = 16, max_version = 18)]
     derivedstream: Option<DerivedStreamInvocation>,
     #[builder(default)]
     #[fluvio(min_version = 18)]
     pub smartmodules: Vec<SmartModuleInvocation>,
-    #[builder(default)]
     #[fluvio(min_version = 23)]
     pub consumer_id: Option<String>,
-    #[builder(setter(skip))]
+    #[builder(default)]
     data: PhantomData<R>,
 }
 

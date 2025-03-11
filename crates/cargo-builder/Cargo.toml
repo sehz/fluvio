@@ -12,5 +12,5 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
-derive_builder = { workspace = true }
+bon = { workspace = true }
 cargo_metadata = "0.18.0"

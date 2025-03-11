@@ -15,8 +15,8 @@ path = "src/lib.rs"
 file = ["fluvio-future","fluvio-protocol/store"]
 
 [dependencies]
+bon = { workspace = true }
 bytes = { workspace = true }
-derive_builder = { workspace = true }
 educe = { version = "0.6.0", features = ["Debug"] }
 flate2 = { workspace = true  }
 serde = { workspace = true, features = ['derive'] }

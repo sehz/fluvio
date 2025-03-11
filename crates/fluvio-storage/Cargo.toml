@@ -29,17 +29,17 @@ required-features = ["fixture"]
 [dependencies]
 anyhow = { workspace = true }
 async-lock = { workspace = true }
-blocking = { workspace = true }
-derive_builder = { workspace = true }
-bytes = { workspace = true }
-nix = { workspace = true }
-thiserror = { workspace = true }
-libc = { workspace = true }
-futures-lite = { workspace = true }
-pin-utils = { workspace = true }
 async-channel = { workspace = true }
 async-trait = { workspace = true }
+blocking = { workspace = true }
+bon = { workspace = true }
+bytes = { workspace = true }
+futures-lite = { workspace = true }
+libc = { workspace = true }
+pin-utils = { workspace = true }
+nix = { workspace = true }
 serde = { workspace = true, features = ['derive', 'std'] }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
 

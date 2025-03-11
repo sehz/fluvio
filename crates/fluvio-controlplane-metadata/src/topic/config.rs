@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use derive_builder::Builder;
+use bon::Builder;
 use fluvio_types::{ReplicationFactor, TopicName, PartitionCount, IgnoreRackAssignment};
 
 use crate::topic::{
@@ -22,7 +22,7 @@ const DEFAULT_VERSION: &str = "0.1.0";
 )]
 pub struct TopicConfig {
     #[cfg_attr(feature = "use_serde", serde(default = "default_version"))]
-    #[builder(default = "default_version()")]
+    #[builder(default = default_version())]
     pub version: String,
 
     pub meta: MetaConfig,
@@ -39,7 +39,6 @@ pub struct TopicConfig {
     #[cfg_attr(feature = "use_serde", serde(default))]
     pub compression: CompressionConfig,
 
-    #[builder(default)]
     #[cfg_attr(
         feature = "use_serde",
         serde(default, skip_serializing_if = "Option::is_none")

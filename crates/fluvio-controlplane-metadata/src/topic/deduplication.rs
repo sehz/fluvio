@@ -1,6 +1,6 @@
 use std::{time::Duration, collections::BTreeMap};
 
-use derive_builder::Builder;
+use bon::Builder;
 use fluvio_protocol::{Encoder, Decoder};
 
 #[derive(Debug, Default, Builder, Clone, PartialEq, Eq, Encoder, Decoder)]
