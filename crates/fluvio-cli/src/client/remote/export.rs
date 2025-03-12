@@ -116,9 +116,13 @@ fn get_tls_config(
                 .to_der()
                 .map_err(|err| anyhow!("error converting cert to der: {}", err))?;
 
+            /*
             let principal = fluvio_auth::x509::X509Authenticator::principal_from_raw_certificate(&cert_der).expect(
                 "error getting principal from certificate. This should never happen as the certificate is valid",
             );
+            */
+            todo!("get principal from certificate");
+            let principal = "hack".to_string();
 
             if principal != remote_id {
                 return Err(anyhow!(

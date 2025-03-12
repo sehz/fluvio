@@ -6,3 +6,5 @@ mod request;
 #[cfg(unix)]
 pub use authenticator::*;
 pub use identity::*;
+
+pub mod cert;

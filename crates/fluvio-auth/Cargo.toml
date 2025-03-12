@@ -13,13 +13,14 @@ publish = false
 name = "fluvio_auth"
 path = "src/lib.rs"
 
-[features]
-fixture = []
 
 [dependencies]
 anyhow = { workspace = true }
+asn1 = { workspace = true }
 async-trait = { workspace = true }
+bon = { workspace = true }
 futures-util = { workspace = true  }
+openssl = { workspace = true, features = ["vendored"]}
 serde = { workspace = true, features = ['derive'] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

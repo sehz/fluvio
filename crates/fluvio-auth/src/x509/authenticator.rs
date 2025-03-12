@@ -1,10 +1,15 @@
+use std::str::FromStr;
+use std::result::Result as StdResult;
 use std::{collections::HashMap, path::Path};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
-use tracing::{debug, trace};
-use x509_parser::{certificate::X509Certificate, parse_x509_certificate};
+use anyhow::{Context, Error, Result};
+use asn1::Utf8String;
 use async_trait::async_trait;
-use anyhow::{Context, Error};
+use tracing::{debug, trace};
+use x509_parser::der_parser::Oid;
+use x509_parser::prelude::ParsedExtension;
+use x509_parser::{certificate::X509Certificate, parse_x509_certificate};
 
 use fluvio_future::net::AsConnectionFd;
 use fluvio_future::{net::TcpStream, openssl::DefaultServerTlsStream};
@@ -17,7 +22,7 @@ use super::request::AuthRequest;
 struct ScopeBindings(HashMap<String, Vec<String>>);
 
 impl ScopeBindings {
-    pub fn load(scope_binding_file_path: &Path) -> Result<Self, Error> {
+    pub fn load(scope_binding_file_path: &Path) -> Result<Self> {
         let file = std::fs::read_to_string(scope_binding_file_path)?;
         let scope_bindings = Self(serde_json::from_str(&file)?);
         debug!("scope bindings loaded {:?}", scope_bindings);
@@ -77,7 +82,7 @@ impl X509Authenticator {
         Ok(response.success)
     }
 
-    fn principal_from_tls_stream(tls_stream: &DefaultServerTlsStream) -> Result<String, Error> {
+    fn principal_from_tls_stream(tls_stream: &DefaultServerTlsStream) -> Result<String> {
         trace!("tls_stream {:?}", tls_stream);
 
         let peer_certificate = tls_stream.peer_certificate();
@@ -90,34 +95,104 @@ impl X509Authenticator {
 
         trace!("client_certificate {:?}", tls_stream);
 
-        let principal = Self::principal_from_raw_certificate(&client_certificate.to_der()?)?;
+        let cert_metdata = CertMetadata::load_from(&client_certificate.to_der()?)?;
 
-        Ok(principal)
+        Ok(cert_metdata.principal)
+    }
+}
+
+/// metadata glean from cert
+pub struct CertMetadata {
+    principal: String,
+    consumer_topics: Vec<String>,
+}
+
+impl CertMetadata {
+    pub fn load_from(cert_bytes: &[u8]) -> Result<Self> {
+        let certs = parse_x509_certificate(cert_bytes)?.1;
+        let principal = common_name_from_parsed_certificate(&certs)?;
+        let consumer_topics = find_consumer_topics(&certs)?;
+        Ok(Self {
+            principal,
+            consumer_topics,
+        })
     }
 
-    pub fn principal_from_raw_certificate(certificate_bytes: &[u8]) -> Result<String, Error> {
-        parse_x509_certificate(certificate_bytes)
-            .context("unable to parse x509 cert")
-            .and_then(|(_, parsed_cert)| Self::common_name_from_parsed_certificate(parsed_cert))
+    pub fn principal(&self) -> &str {
+        &self.principal
     }
 
-    fn common_name_from_parsed_certificate(certificate: X509Certificate) -> Result<String, Error> {
-        certificate
-            .subject()
-            .iter_common_name()
-            .next()
-            .ok_or_else(|| Error::msg("CN not found"))
-            .and_then(|cn_atv| {
-                cn_atv
-                    .as_str()
-                    .map(|cn_str| {
-                        let cn_string = cn_str.to_owned();
-                        debug!("common_name from cert: {:?}", cn_string);
-                        cn_string
-                    })
-                    .context("Cert CN in incorrect format")
-            })
+    pub fn consumer_topics(&self) -> Vec<&str> {
+        self.consumer_topics.iter().map(|s| s.as_str()).collect()
     }
+}
+
+fn common_name_from_parsed_certificate(certificate: &X509Certificate) -> Result<String> {
+    certificate
+        .subject()
+        .iter_common_name()
+        .next()
+        .ok_or_else(|| Error::msg("CN not found"))
+        .and_then(|cn_atv| {
+            cn_atv
+                .as_str()
+                .map(|cn_str| {
+                    let cn_string = cn_str.to_owned();
+                    debug!("common_name from cert: {:?}", cn_string);
+                    cn_string
+                })
+                .context("Cert CN in incorrect format")
+        })
+}
+
+fn find_consumer_topics(certificate: &X509Certificate) -> Result<Vec<String>> {
+    let consumer_oid = Oid::from_str("1.2.3.4.5.6.7").map_err(|_| Error::msg("can't parse OID"))?;
+
+    let mut topics: Vec<String> = vec![];
+    for ext in certificate.extensions() {
+        if ext.oid == consumer_oid {
+            println!("found extension");
+            let value = ext.value;
+            println!("value len: {}", value.len());
+            //let string_value = std::str::from_utf8(&value).map_err(|_| Error::msg("can't convert to string"))?;
+            //println!("string value: {}",string_value);
+            //topics.push(string_value);
+
+            let result: asn1::ParseResult<_> = asn1::parse(&value, |d| {
+                return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                    let first = d.read_element::<Utf8String>()?;
+                    let second = d.read_element::<Utf8String>()?;
+                    return Ok((first, second));
+                });
+            });
+
+            match result {
+                Ok((first, second)) => {
+                    println!("first: {:?}", first);
+                    println!("second: {:?}", second);
+                }
+                Err(err) => {
+                    println!("error: {:?}", err);
+                }
+            }
+
+            /*
+            let parse_extens = ext.parsed_extension();
+            match parse_extens {
+                ParsedExtension::UnsupportedExtension { oid } =>  {
+                    println!("unsupported extension");
+                    println!("found extension: {:?}", oid);
+                    let string_rep = oid.to_string();
+                    topics.push(string_rep);
+                }
+                _ => {
+                    debug!("unsupported  extension");
+                }
+            }
+            */
+        }
+    }
+    Ok(vec![])
 }
 
 #[async_trait]
@@ -126,7 +201,7 @@ impl Authenticator for X509Authenticator {
         &self,
         incoming_tls_stream: &DefaultServerTlsStream,
         target_tcp_stream: &TcpStream,
-    ) -> Result<bool, IoError> {
+    ) -> StdResult<bool, IoError> {
         let principal = Self::principal_from_tls_stream(incoming_tls_stream)
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
         let scopes = self.scope_bindings.get_scopes(&principal);
@@ -139,13 +214,15 @@ impl Authenticator for X509Authenticator {
 
 #[cfg(test)]
 mod tests {
-    use super::X509Authenticator;
+    use std::path::PathBuf;
+
+    use super::*;
 
     #[test]
     fn test_principal_from_raw_certificate() {
         let (_, pem) = x509_parser::prelude::parse_x509_pem(TEST_CERTIFICATE.as_bytes()).unwrap();
-        let common_name = X509Authenticator::principal_from_raw_certificate(&pem.contents).unwrap();
-        assert_eq!(common_name, "root".to_owned());
+        let meta = CertMetadata::load_from(&pem.contents).expect("load");
+        assert_eq!(meta.principal, "root".to_owned());
     }
 
     const TEST_CERTIFICATE: &str = r#"-----BEGIN CERTIFICATE-----
@@ -187,4 +264,18 @@ STAyKOaZ+QCRP9o2UiooNgENgFdXgiYzmilZccczEd9Q2ejYv2207D/Qhm59gyCw
 mzLjzLINLWrcsi0rG261ou87AulxYP0QXnTFwnr6IinsnAKQhrZqRwBMqgzD4TVz
 9yRsdBnrZVYxKKafmgz9omKDVFUVEtd39oo=
 -----END CERTIFICATE-----"#;
+
+    #[test]
+    fn test_consumer_extensions_read() {
+        let cert_path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tls/certs/client-consumer1.crt");
+        let cert_bytes = std::fs::read(cert_path).expect("read cert");
+        let (_, pem) = x509_parser::prelude::parse_x509_pem(&cert_bytes).expect("parse");
+        let meta = CertMetadata::load_from(&pem.contents).expect("load");
+        assert_eq!(meta.principal, "consumer1".to_owned());
+        assert_eq!(
+            meta.consumer_topics,
+            vec!["topic1".to_owned(), "topic2".to_owned()]
+        );
+    }
 }
