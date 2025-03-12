@@ -45,7 +45,7 @@ uninstall-k8:
 
 
 
-generate-certs:	clean-cert	generate-ca-crt generate-server-crt generate-client-crts
+generate-certs:	clean-cert	generate-ca-crt generate-server-crt generate-client-crts generate-client-consumer-crt
 
 generate-ca-key:
 	openssl genrsa  -out certs/ca.key $(KEY_LEN)
@@ -129,14 +129,20 @@ generate-client-consumer-crt:	generate-client-consumer-csr
 		-CA certs/ca.crt -CAkey certs/ca.key -CAcreateserial \
 		-extensions v3_end \
 		-extfile openssl.cnf
+		
+decrypt-consumer1-crt:
+	openssl x509 -in certs/client-consumer1.crt   -noout -text
 
 generate-client-consumer-csr:	generate-client-consumer-key
 	openssl req -new -key certs/client-consumer1.key -out certs/client-consumer1.csr \
-		-subj "/C=US/ST=CA/O=MyOrg, Inc./CN=consumer1" --addext "Consumer = topic1"
+		-subj "/C=US/ST=CA/O=MyOrg, Inc./CN=consumer1" \
+		--config openssl.cnf --extensions v3_end
 
 
 generate-client-consumer-key:
 	openssl genrsa -out certs/client-consumer1.key $(KEY_LEN)	
+	
+
 
 # for non mac
 test-curl:

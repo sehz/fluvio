@@ -1,11 +1,14 @@
+
 [ v3_end ]
 basicConstraints = critical,CA:false
 keyUsage = nonRepudiation, digitalSignature
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer:always
 subjectAltName = @alt_names
-1.2.3.4.5.6.7.8=ASN1:UTF8String:Consumer
+1.2.3.4.5.6.7 = ASN1:SEQUENCE:consumer_topics
 
+[ consumer_topics ]
+topic1 = UTF8String:topic1
 
 
 [ alt_names ]
