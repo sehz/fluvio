@@ -13,6 +13,9 @@ publish = false
 name = "fluvio_auth"
 path = "src/lib.rs"
 
+[features]
+fixture = []
+
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }

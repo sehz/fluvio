@@ -6,3 +6,6 @@ pub mod x509;
 
 pub use policy::*;
 pub use error::AuthError;
+
+#[cfg(feature = "fixture")]
+mod fixture;

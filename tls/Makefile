@@ -1,5 +1,7 @@
 FLUVIO_BIN=../target/debug/fluvio
-
+KEY_LEN=4096
+DAYS=365
+CERT_DIR=certs
 
 clean-cert:
 	mkdir -p certs
@@ -46,7 +48,7 @@ uninstall-k8:
 generate-certs:	clean-cert	generate-ca-crt generate-server-crt generate-client-crts
 
 generate-ca-key:
-	openssl genrsa  -out certs/ca.key 4096
+	openssl genrsa  -out certs/ca.key $(KEY_LEN)
 
 
 # this is CA pem file
@@ -56,7 +58,7 @@ generate-ca-crt:	generate-ca-key
 
 
 generate-server-key:
-	openssl genrsa -out certs/server.key 4096
+	openssl genrsa -out certs/server.key $(KEY_LEN)
 
 
 generate-server-csr:	generate-server-key
@@ -78,7 +80,7 @@ generate-server-crt:	generate-server-csr
 		-CA certs/ca.crt \
 		-CAkey certs/ca.key \
 		-CAcreateserial  \
-		-days 500 \
+		-days $(DAYS) \
 		-extensions v3_end \
 		-extfile openssl.cnf
 
@@ -88,7 +90,7 @@ generate-client-crts:	generate-client-root-crt generate-client-user1-crt
 
 generate-client-root-crt:	generate-client-root-csr
 	openssl x509 -req \
-		-days 365 -in certs/client-root.csr \
+		-days $(DAYS) -in certs/client-root.csr \
 		-out certs/client-root.crt \
 		-CA certs/ca.crt -CAkey certs/ca.key -CAcreateserial \
 		-extensions v3_end \
@@ -99,13 +101,13 @@ generate-client-root-csr:	generate-client-root-key
 		-subj "/C=US/ST=CA/O=MyOrg, Inc./CN=root"
 
 generate-client-root-key:
-	openssl genrsa -out certs/client-root.key 4096
+	openssl genrsa -out certs/client-root.key $(KEY_LEN)
 
 
 # todo, consolidate this into csr
 generate-client-user1-crt:	generate-client-user1-csr
 	openssl x509 -req \
-		-days 365 -in certs/client-user1.csr \
+		-days $(DAYS) -in certs/client-user1.csr \
 		-out certs/client-user1.crt \
 		-CA certs/ca.crt -CAkey certs/ca.key -CAcreateserial \
 		-extensions v3_end \
@@ -117,9 +119,24 @@ generate-client-user1-csr:	generate-client-user1-key
 
 
 generate-client-user1-key:
-	openssl genrsa -out certs/client-user1.key 4096
+	openssl genrsa -out certs/client-user1.key $(KEY_LEN)
+
+# generate consumer role certs
+generate-client-consumer-crt:	generate-client-consumer-csr
+	openssl x509 -req \
+		-days $(DAYS)  -in certs/client-consumer1.csr \
+		-out certs/client-consumer1.crt \
+		-CA certs/ca.crt -CAkey certs/ca.key -CAcreateserial \
+		-extensions v3_end \
+		-extfile openssl.cnf
+
+generate-client-consumer-csr:	generate-client-consumer-key
+	openssl req -new -key certs/client-consumer1.key -out certs/client-consumer1.csr \
+		-subj "/C=US/ST=CA/O=MyOrg, Inc./CN=consumer1" --addext "Consumer = topic1"
 
 
+generate-client-consumer-key:
+	openssl genrsa -out certs/client-consumer1.key $(KEY_LEN)	
 
 # for non mac
 test-curl:

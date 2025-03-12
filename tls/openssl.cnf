@@ -1,23 +1,12 @@
-
 [ v3_end ]
 basicConstraints = critical,CA:false
 keyUsage = nonRepudiation, digitalSignature
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer:always
 subjectAltName = @alt_names
+1.2.3.4.5.6.7.8=ASN1:UTF8String:Consumer
 
-[ v3_client ]
-basicConstraints = critical,CA:false
-keyUsage = nonRepudiation, digitalSignature
-extendedKeyUsage = critical, clientAuth
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer:always
 
-[ v3_inter ]
-subjectKeyIdentifier = hash
-extendedKeyUsage = critical, serverAuth, clientAuth
-basicConstraints = CA:true
-keyUsage = cRLSign, keyCertSign, digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment, keyAgreement, keyCertSign, cRLSign
 
 [ alt_names ]
 DNS.2 = *.fluvio.local
