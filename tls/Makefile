@@ -120,6 +120,9 @@ generate-client-user1-csr:	generate-client-user1-key
 
 generate-client-user1-key:
 	openssl genrsa -out certs/client-user1.key $(KEY_LEN)
+	
+	
+CONSUMER_CONFIG=consumer.cnf	
 
 # generate consumer role certs
 generate-client-consumer-crt:	generate-client-consumer-csr
@@ -128,7 +131,7 @@ generate-client-consumer-crt:	generate-client-consumer-csr
 		-out certs/client-consumer1.crt \
 		-CA certs/ca.crt -CAkey certs/ca.key -CAcreateserial \
 		-extensions v3_end \
-		-extfile openssl.cnf
+		-extfile $(CONSUMER_CONFIG)
 		
 decrypt-consumer1-crt:
 	openssl x509 -in certs/client-consumer1.crt   -noout -text
@@ -136,7 +139,7 @@ decrypt-consumer1-crt:
 generate-client-consumer-csr:	generate-client-consumer-key
 	openssl req -new -key certs/client-consumer1.key -out certs/client-consumer1.csr \
 		-subj "/C=US/ST=CA/O=MyOrg, Inc./CN=consumer1" \
-		--config openssl.cnf --extensions v3_end
+		--config $(CONSUMER_CONFIG) --extensions v3_end
 
 
 generate-client-consumer-key:
