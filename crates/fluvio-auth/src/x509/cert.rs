@@ -456,17 +456,17 @@ mod tests {
             _ => panic!("CA did not issue this ServerCert"),
         }
 
-        /* 
+        
         let client_crt = ClientCertConfig::builder()
             .principal(TEST_PRINCIPAL)
             .build()
             .generate(&ca_cert)
             .expect("should generate ClientCert");
 
-        let client_pem = client_crt.cert_pem().expect("pem");
 
-        X509::from_pem(client_pem.as_bytes()).expect("ClientCert should give valid PEM");
-        PrivateKey::private_key_from_pem(client_pem.as_bytes())
+        //assert_eq!(client_pen.len(),200);
+        X509::from_pem(client_crt.cert_pem().expect("pem").as_bytes()).expect("ClientCert should give valid PEM");
+        PrivateKey::private_key_from_pem(client_crt.key_pem().expect("key").as_bytes())
             .expect("ClientCert should have valid Private Key");
 
         // Verify that the CA issued the client cert
@@ -476,10 +476,10 @@ mod tests {
         }
 
         // read principal from client cert
-        let (_, pem) = x509_parser::prelude::parse_x509_pem(client_pem.as_bytes()).expect("parse");
-        let meta = CertMetadata::load_from(&pem.contents).expect("load");
-        assert_eq!(meta.principal(), TEST_PRINCIPAL);
-        */
+      //  let (_, pem) = x509_parser::prelude::parse_x509_pem(client_pem.as_bytes()).expect("parse");
+      //  let meta = CertMetadata::load_from(&pem.contents).expect("load");
+      //  assert_eq!(meta.principal(), TEST_PRINCIPAL);
+        
     }
 
     /*
