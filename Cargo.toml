@@ -65,7 +65,7 @@ flv-tls-proxy = { path = "../flv-tls-proxy" }
 
 [workspace.dependencies]
 adaptive_backoff = "0.2.1"
-asn1 = "0.21.0"
+asn1 = { version = "0.21.0" }
 anyhow = "1.0.86"
 async-channel = { version = "1.9.0", default-features = false }
 async-io = "2.3.3"

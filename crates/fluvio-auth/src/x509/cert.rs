@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, anyhow};
+use asn1::Utf8String;
 use bon::Builder;
-use openssl::asn1::{Asn1Integer, Asn1IntegerRef, Asn1Time};
+use openssl::asn1::{Asn1Integer, Asn1IntegerRef, Asn1Object, Asn1OctetString, Asn1OctetStringRef, Asn1Time};
 use openssl::bn::{BigNum, MsbOption};
 use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
@@ -362,10 +363,19 @@ impl ClientCert {
         cert_builder.append_extension(auth_key_identifier)?;
 
         let extension_value = "topic1,topic2,topic3";
-        let custom_extension =
-        X509Extension::new(None, None, "1.2.3.4.5.6.7", extension_value)?;
-        cert_builder.append_extension(custom_extension)?;
+     //   let mut custom_extension =
+     //   X509Extension::new_from_der()?;
+      //  custom_extension.set_critical(false);
+       // cert_builder.append_extension(custom_extension)?;
 
+       let extension = FluvioExtension {
+            first: Utf8String::new(extension_value),
+        };
+        let extension_der_contents = asn1::write_single(&extension)?;
+        let oid: Asn1Object = Asn1Object::from_str("1.2.3.4.5.6.7 ")?;
+        let der_contents = Asn1OctetString::new_from_bytes(&extension_der_contents)?;
+        let custom_extension = X509Extension::new_from_der(&oid, false, &der_contents)?;
+        cert_builder.append_extension(custom_extension)?;
 
         cert_builder.sign(&ca.key, MessageDigest::sha256())?;
         let cert = cert_builder.build();
@@ -396,6 +406,11 @@ pub struct DistinguishedName {
     pub org: Option<String>,
     pub email: String,
     pub cn: String,
+}
+
+#[derive(asn1::Asn1Read, asn1::Asn1Write)]
+pub struct FluvioExtension<'a> {
+    first: Utf8String<'a>,
 }
 
 /// Generate a default private key with 4096 bits
