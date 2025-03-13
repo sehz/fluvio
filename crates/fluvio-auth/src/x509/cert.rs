@@ -13,7 +13,7 @@ use openssl::x509::extension::{
     AuthorityKeyIdentifier, BasicConstraints, KeyUsage, SubjectAlternativeName,
     SubjectKeyIdentifier,
 };
-use openssl::x509::X509Builder;
+use openssl::x509::{X509Builder, X509Extension};
 use openssl::x509::X509NameBuilder;
 use openssl::x509::X509Req;
 use openssl::x509::X509ReqBuilder;
@@ -360,6 +360,12 @@ impl ClientCert {
             .issuer(true)
             .build(&cert_builder.x509v3_context(Some(&ca.cert), None))?;
         cert_builder.append_extension(auth_key_identifier)?;
+
+        let extension_value = "topic1,topic2,topic3";
+        let custom_extension =
+        X509Extension::new(None, None, "1.2.3.4.5.6.7", extension_value)?;
+        cert_builder.append_extension(custom_extension)?;
+
 
         cert_builder.sign(&ca.key, MessageDigest::sha256())?;
         let cert = cert_builder.build();
