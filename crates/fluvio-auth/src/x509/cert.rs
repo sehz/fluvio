@@ -476,9 +476,9 @@ mod tests {
         }
 
         // read principal from client cert
-      //  let (_, pem) = x509_parser::prelude::parse_x509_pem(client_pem.as_bytes()).expect("parse");
-      //  let meta = CertMetadata::load_from(&pem.contents).expect("load");
-      //  assert_eq!(meta.principal(), TEST_PRINCIPAL);
+        let (_, pem) = x509_parser::prelude::parse_x509_pem(client_crt.cert_pem().expect("pem").as_bytes()).expect("parse");
+        let meta = CertMetadata::load_from(&pem.contents).expect("load");
+        assert_eq!(meta.principal(), TEST_PRINCIPAL);
         
     }
 
