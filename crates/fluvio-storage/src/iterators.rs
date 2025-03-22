@@ -274,14 +274,10 @@ mod test {
         let mut records = RecordSet {
             batches: vec![batch1, batch2],
         };
-        run_block_on(replica.write_recordset(&mut records, false))?;
+        run_block_on(replica.write_recordset(&mut records))?;
 
         //when
-        let slice = run_block_on(replica.read_partition_slice(
-            0,
-            u32::MAX,
-            fluvio_spu_schema::Isolation::ReadUncommitted,
-        ))?;
+        let slice = run_block_on(replica.read_partition_slice(0, u32::MAX))?;
         let file_slice = slice
             .file_slice
             .ok_or_else(|| anyhow::anyhow!("expected file slice"))?;

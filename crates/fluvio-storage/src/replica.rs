@@ -75,11 +75,6 @@ impl ReplicaStorage for FileReplica {
         .await
     }
 
-    #[inline(always)]
-    fn get_hw(&self) -> Offset {
-        self.commit_checkpoint.get_offset()
-    }
-
     /// offset mark that beginning of uncommitted
     #[inline(always)]
     fn get_leo(&self) -> Offset {
@@ -98,20 +93,13 @@ impl ReplicaStorage for FileReplica {
 
     /// read partition slice
     /// return leo, hw
-    #[instrument(skip(self, offset, max_len, isolation))]
+    #[instrument(skip(self, offset, max_len))]
     async fn read_partition_slice(
         &self,
         offset: Offset,
         max_len: u32,
-        isolation: Isolation,
     ) -> Result<ReplicaSlice, ErrorCode> {
-        match isolation {
-            Isolation::ReadCommitted => {
-                self.read_records(offset, Some(self.get_hw()), max_len)
-                    .await
-            }
-            Isolation::ReadUncommitted => self.read_records(offset, None, max_len).await,
-        }
+        self.read_records(offset, None, max_len).await
     }
 
     /// return the size in bytes (includes index size and log size)
@@ -130,11 +118,10 @@ impl ReplicaStorage for FileReplica {
     /// write records to this replica
     /// if update_highwatermark is set, set high watermark is end
     //  this is used when LRS = 1
-    #[instrument(skip(self, records, update_highwatermark))]
+    #[instrument(skip(self, records))]
     async fn write_recordset<R: BatchRecords>(
         &mut self,
         records: &mut RecordSet<R>,
-        update_highwatermark: bool,
     ) -> Result<usize> {
         let mut total_size = 0;
         // check if any of the records's batch exceed max length
@@ -157,32 +144,7 @@ impl ReplicaStorage for FileReplica {
             self.write_batch(batch).await?;
         }
 
-        if update_highwatermark {
-            self.update_high_watermark_to_end().await?;
-        }
         Ok(total_size)
-    }
-
-    /// update committed offset (high watermark)
-    /// if true, hw is updated
-    #[instrument(skip(self, offset))]
-    async fn update_high_watermark(&mut self, offset: Offset) -> Result<bool, StorageError> {
-        let old_offset = self.get_hw();
-        if old_offset == offset {
-            trace!(
-                "new high watermark: {} is same as existing one, skipping",
-                offset
-            );
-            Ok(false)
-        } else {
-            trace!(
-                "updating to new high watermark: {} old: {}",
-                old_offset,
-                offset
-            );
-            self.commit_checkpoint.write(offset);
-            Ok(true)
-        }
     }
 
     #[instrument(skip(self))]
@@ -314,12 +276,6 @@ impl FileReplica {
         }
     }
 
-    /// update high watermark to end
-    #[instrument(skip(self))]
-    pub async fn update_high_watermark_to_end(&mut self) -> Result<bool, StorageError> {
-        self.update_high_watermark(self.get_leo()).await
-    }
-
     /// read all uncommitted records
     #[allow(unused)]
     #[instrument(skip(self, max_len))]
@@ -327,7 +283,7 @@ impl FileReplica {
         &self,
         max_len: u32,
     ) -> Result<ReplicaSlice, ErrorCode> {
-        self.read_records(self.get_hw(), None, max_len).await
+        self.read_records(self.get_leo(), None, max_len).await
     }
 
     /// read record slice into response
@@ -343,12 +299,11 @@ impl FileReplica {
         max_offset: Option<Offset>,
         max_len: u32,
     ) -> Result<ReplicaSlice, ErrorCode> {
-        let hw = self.get_hw();
         let leo = self.get_leo();
-        debug!(hw, leo, "starting read records",);
+        debug!(leo, "starting read records",);
 
         let mut slice = ReplicaSlice {
-            end: OffsetInfo { hw, leo },
+            end: OffsetInfo { leo },
             start: self.get_log_start_offset(),
             ..Default::default()
         };

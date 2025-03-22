@@ -8,16 +8,19 @@ use anyhow::Result;
 
 use fluvio_protocol::record::BatchRecords;
 use fluvio_controlplane_metadata::partition::ReplicaKey;
-use fluvio_spu_schema::Isolation;
 use fluvio_protocol::Encoder;
 use fluvio_protocol::record::{Offset, RecordSet};
 use fluvio_protocol::link::ErrorCode;
-use fluvio_storage::{ReplicaStorage, StorageError, OffsetInfo, ReplicaSlice};
+use fluvio_storage::{ReplicaStorage, StorageError, ReplicaSlice};
 use fluvio_types::event::offsets::OffsetChangeListener;
 use fluvio_types::event::offsets::OffsetPublisher;
 
+use crate::replication::util::OffsetInfo;
+
 pub const REMOVAL_START: Offset = -1000; // indicate that storage about to be removed
 pub const REMOVAL_END: Offset = -1001; // indicate the storage has been removed
+
+pub(crate) const OFFSET_INIT: Offset = -1;
 
 /// Thread safe storage for replicas
 #[derive(Debug)]
@@ -48,7 +51,7 @@ where
         let storage = S::create_or_load(&id, config).await?;
 
         let leo = Arc::new(OffsetPublisher::new(storage.get_leo()));
-        let hw = Arc::new(OffsetPublisher::new(storage.get_hw()));
+        let hw = Arc::new(OffsetPublisher::new(OFFSET_INIT));
         Ok(Self {
             id,
             inner: Arc::new(RwLock::new(storage)),
