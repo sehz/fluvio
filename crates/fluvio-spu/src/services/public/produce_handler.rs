@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use tokio::select;
-use tracing::{debug, trace, error};
+use tracing::{debug, error, trace, warn};
 use tracing::instrument;
 use anyhow::{anyhow, Result};
 
@@ -92,7 +92,7 @@ async fn handle_produce_topic(
 ) -> Result<TopicWriteResult> {
     let topic = &topic_request.name;
 
-    trace!("Handling produce request for topic: {topic}");
+    debug!(topic, "Handling produce request for topic");
 
     let mut topic_result = TopicWriteResult {
         topic: topic.clone(),
@@ -104,7 +104,7 @@ async fn handle_produce_topic(
         let leader_state = match ctx.leaders_state().get(&replica_id).await {
             Some(leader_state) => leader_state,
             None => {
-                debug!(%replica_id, "Replica not found");
+                warn!(%replica_id, "Replica not found for produce");
                 topic_result.partitions.push(PartitionWriteResult::error(
                     replica_id,
                     ErrorCode::NotLeaderForPartition,
